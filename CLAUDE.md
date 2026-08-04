@@ -1,0 +1,304 @@
+# CLAUDE.md — Neon Led Spain
+
+Guía maestra del proyecto para Claude Code. Lee este archivo antes de generar código. Aquí está la arquitectura, el stack, el sistema de diseño y las reglas del negocio. Manténlo actualizado cuando cambien decisiones importantes.
+
+---
+
+## 1. Qué estamos construyendo
+
+Tienda online (e-commerce) de **Neon Led Spain**, una empresa de Mallorca que vende **neones LED** decorativos y, sobre todo, **neones personalizados**.
+
+**La pieza más importante del proyecto es el configurador de neón personalizado.** Debe ser el mejor del sector: preview en vivo, precio en tiempo real y una experiencia fluida. Todo lo demás (catálogo, checkout, admin) gira alrededor de eso.
+
+Dos vías de personalización:
+1. **Configurador de texto**: el cliente escribe su texto y ve el neón encenderse en vivo (fuente, color, tamaño, soporte).
+2. **Sube tu imagen / diseño a medida**: el cliente sube una imagen o idea y nosotros hacemos el diseño. Debe indicar el tamaño deseado con un selector para que podamos presupuestar y hacernos una idea.
+
+Existe una web actual (`https://neonledspain.com/`) que este proyecto **sustituye y mejora**. La usamos como referencia de contenido (FAQ, contacto, categorías), pero el diseño y la personalización son nuevos y superiores.
+
+### Datos del negocio (reales)
+- **Empresa:** Neon Led Spain
+- **Teléfono:** 627 65 22 02
+- **Email:** hola@neonledspain.com
+- **Dirección:** Carrer Licorers nº33, Polígono de Marratxí, Mallorca
+- **Rango de precio de catálogo actual:** ~190 € – 410 €
+- **Categorías:** Bodas · Cumpleaños · Frases famosas · Dibujos e iconos · Personalizado · (Negocios/comercial)
+
+---
+
+## 2. Stack tecnológico
+
+| Capa | Tecnología | Notas |
+|------|-----------|-------|
+| Framework | **Next.js 15 (App Router) + TypeScript** | Full-stack: frontend + API routes en un solo proyecto |
+| UI / estilos | **Tailwind CSS + shadcn/ui** | Componentes accesibles y consistentes |
+| Animación | **Framer Motion** | Transiciones y efectos de "encendido" de neón |
+| Base de datos | **PostgreSQL vía Supabase** | Datos relacionales |
+| ORM | **Prisma** | Esquema declarativo, migraciones |
+| Auth | **Supabase Auth** | Clientes + rol admin (RBAC) |
+| Almacenamiento | **Supabase Storage** | Imágenes de producto y subidas de clientes (diseños a medida) |
+| Pagos | **Stripe** | Checkout + webhooks. **Aplazado**: se integra al final del proyecto |
+| Emails | **Resend** | Confirmaciones de pedido y avisos |
+| Hosting (dev) | **Servidor propio Ubuntu + nginx** | Self-host con `next start` detrás de nginx (reverse proxy) |
+| Hosting (futuro) | Hosting profesional | Se migrará cuando el proyecto esté listo |
+| Backend | **Supabase** | Datos, auth y almacenamiento |
+
+> Decisión tomada: **todo por Supabase** de momento (datos, auth y almacenamiento). Si el ancho de banda de imágenes aprieta, se migran las imágenes a Cloudinary sin tocar el resto.
+>
+> **Deploy**: el usuario despliega en su propio servidor Ubuntu con nginx. Usar `output: "standalone"` en `next.config` para facilitar el self-host. No dependemos de features exclusivas de Vercel.
+>
+> **Pagos**: Stripe se integra en la última fase. Hasta entonces el checkout puede quedar como flujo sin cobro real / solicitud.
+
+### Reglas de stack
+- **No añadir dependencias** nuevas sin justificarlo. Preferir lo que ya está.
+- Todo en **TypeScript estricto**. Nada de `any` sin comentario que lo justifique.
+- **Server Components por defecto**; usar `"use client"` solo donde haga falta interactividad (configurador, carrito, admin).
+- Lógica sensible (precios, pedidos, pagos) **siempre en el servidor**. El cliente nunca fija el precio final.
+
+---
+
+## 3. Arquitectura
+
+Aplicación monolítica Next.js. El backend son Route Handlers y Server Actions dentro del mismo proyecto.
+
+```
+Cliente (navegador)
+      │
+      ▼
+Next.js en Vercel
+ ├── Rutas públicas (tienda)
+ ├── Configurador de neón  ⭐ (client component + cálculo de precio en servidor)
+ ├── Checkout (Stripe)
+ ├── Área de cliente (mis pedidos)
+ ├── /admin (protegido por rol)
+ └── /api  → webhooks Stripe, subida de imágenes, cálculo de precio
+      │
+      ▼
+Supabase  (Postgres + Auth + Storage)
+Stripe    (pagos)
+Resend    (emails)
+```
+
+### Flujo de un pedido personalizado
+1. Cliente configura el neón (texto/color/tamaño/soporte) **o** sube una imagen + tamaño deseado.
+2. El precio se calcula **en el servidor** a partir de las reglas de precio (ver §6).
+3. Se añade al carrito guardando la **ficha completa de personalización** (todos los parámetros + URL de imagen si la hay).
+4. Checkout con Stripe. El webhook confirma el pago y crea el pedido en estado `nuevo`.
+5. El pedido aparece en `/admin` con toda la ficha de producción para fabricarlo.
+6. Emails automáticos de confirmación y de cambios de estado.
+
+---
+
+## 4. Estructura de carpetas (objetivo)
+
+```
+/app
+  /(shop)            # tienda pública
+    /page.tsx        # home
+    /productos       # catálogo + detalle
+    /personalizar    # ⭐ configurador de texto
+    /diseno-a-medida # subir imagen + tamaño
+    /carrito
+    /checkout
+    /faq
+    /contacto
+  /(account)         # área de cliente
+    /pedidos
+  /admin             # panel de administración (protegido)
+    /pedidos
+    /productos
+    /precios         # reglas de precio por tamaño
+  /api               # route handlers (stripe webhook, uploads, pricing)
+/components
+  /ui                # shadcn
+  /neon              # componentes del efecto neón y configurador
+/lib                 # prisma, supabase, stripe, pricing, utils
+/prisma              # schema.prisma + migraciones
+/public              # assets estáticos (logo, etc.)
+```
+
+---
+
+## 5. Sistema de diseño
+
+**Objetivo: minimalista y moderno, pero inequívocamente "de neones".** Limpio y profesional como una buena tienda, con el brillo de neón como acento — no un carnaval de luces. El producto es el que brilla; la interfaz lo enmarca.
+
+### Principios
+- **Fondo oscuro por defecto** (los neones necesitan oscuridad para brillar). Es la identidad, no una opción de tema.
+- **Mucho espacio en negro/vacío.** Minimalismo: pocos elementos, bien colocados.
+- **El color neón es acento**, no relleno: bordes que brillan al hover, títulos con glow sutil, CTAs encendidos. El grueso del texto es blanco/gris legible.
+- **Tipografía nítida** para leer + un toque de fuente "neón/script" solo para acentos de marca.
+- **Rendimiento primero.** Nada de vídeos pesados de fondo (el `animacion.mp4` del repo es solo referencia, NO usarlo: ralentiza la carga). Los efectos se hacen con CSS/Canvas.
+
+### Paleta (extraída del logo)
+```
+--bg:            #0A0A0F   (negro azulado, fondo base)
+--surface:       #14141B   (tarjetas/superficies)
+--text:          #F5F5F7   (texto principal)
+--text-muted:    #A0A0A
+--neon-cyan:     #29ABE2   (acento primario)
+--neon-magenta:  #EC1E8C   (acento / CTAs)
+--neon-yellow:   #F2E20A   (acento de marca, escaso)
+```
+Cian y magenta son los colores dominantes de marca; el amarillo es un guiño puntual (como el "Spain" del logo). Usar máximo 1–2 colores neón por vista para no saturar.
+
+### Efecto neón (técnica)
+- Glow con capas de `text-shadow` / `box-shadow` (varias sombras del mismo color con blur creciente).
+- Animaciones de "encendido" y parpadeo sutil con CSS keyframes / Framer Motion, **con moderación**.
+- Respetar `prefers-reduced-motion`: si el usuario lo pide, sin parpadeos.
+- Encapsular esto en componentes reutilizables (`<NeonText>`, `<NeonBorder>`) en `/components/neon`.
+
+### Marca y assets
+- Logo: `logo.webp` (en el repo). "NEON LED" en blanco, "Spain" en script amarillo, triángulo cian+magenta.
+- **Estados de carga** (loaders, skeletons) con temática neón: p. ej. un tubo de neón que se "enciende" progresivamente, o skeletons con leve pulso de glow. Deben sentirse parte de la marca.
+- Microinteracciones: hover que "enciende" el elemento.
+
+---
+
+## 6. ⭐ Configurador de neón personalizado (la joya)
+
+Debe ser **el mejor del sector**. Dos modos:
+
+### Modo A — Configurador de texto (preview en vivo)
+Controles del cliente:
+- **Texto** (una o varias líneas).
+- **Fuente**: varias tipografías tipo neón/script (curadas, no infinitas).
+- **Color del neón**: paleta de colores LED reales disponibles.
+- **Tamaño**: selector de anchos/altos disponibles (S/M/L/XL o cm).
+- **Soporte/fondo**: tipo de acrílico/base (recorte, rectángulo, etc.).
+- **Uso**: pared / colgar / sobremesa (afecta a montaje).
+
+Comportamiento:
+- **Preview en vivo**: el texto se renderiza con el efecto neón, fuente y color elegidos, en tiempo real (Canvas o DOM+CSS).
+- **Precio en tiempo real**: recalcula al cambiar cualquier parámetro. El cálculo mostrado es indicativo; el **precio final se valida en el servidor** antes de pagar.
+- Al añadir al carrito se guarda la **ficha completa** (texto, fuente, color, medidas, soporte, uso) → es la orden de producción.
+
+### Modo B — Diseño a medida (sube tu imagen)
+- El cliente **sube una imagen** (logo, boceto, foto) a Supabase Storage.
+- Indica el **tamaño deseado con un selector** (para que podamos hacernos una idea y presupuestar).
+- Campo de notas/descripción de cómo lo quiere.
+- Genera una **solicitud de presupuesto** que llega al admin (no es compra directa; se revisa y se cotiza).
+
+### Reglas de precio (configurables desde el admin)
+El precio NO está hardcodeado. Se calcula a partir de reglas que el **admin puede ajustar** (ver §7):
+- Precio base por **tamaño** (el eje principal, según lo pedido).
+- Posibles modificadores: nº de caracteres/longitud del tubo, nº de colores, tipo de soporte, uso exterior, etc.
+- La función de pricing vive en `/lib/pricing.ts` y se ejecuta **en el servidor**. El configurador la llama vía API para mostrar el precio; el checkout la vuelve a ejecutar para el precio real.
+
+---
+
+## 7. Panel de administración (`/admin`)
+
+Protegido por rol admin (Supabase Auth + RBAC). Todo dentro del mismo Next.js.
+
+Funciones:
+- **Pedidos**: listado con estados (`nuevo → en_producción → enviado → entregado`, + `cancelado`). Ver la ficha de producción completa de cada personalizado (incluida imagen subida en diseños a medida).
+- **Solicitudes de presupuesto** (diseños a medida): revisar imagen + tamaño, responder/cotizar.
+- **Productos (CRUD)**: alta/edición de neones del catálogo, con imágenes, categorías, variantes y precios.
+- **Herramienta de personalización interna**: para **crear/añadir nuestros propios neones al catálogo** usando el mismo configurador (diseñamos el neón y lo publicamos como producto).
+- **Reglas de precio**: ajustar el **precio por tamaño** y modificadores del configurador (ver §6). Es un requisito explícito: el admin controla el precio por tamaño sin tocar código.
+
+---
+
+## 8. Modelo de datos (borrador Prisma)
+
+Punto de partida; se refina al implementar.
+
+- **User** (rol: `customer` | `admin`)
+- **Product** (nombre, slug, descripción, categoría, precioBase, imágenes[], activo)
+- **ProductVariant** (tamaño, color, precio) — para catálogo
+- **Category** (bodas, cumpleaños, frases, iconos, personalizado, negocios)
+- **PricingRule** (parámetro: tamaño/longitud/colores/soporte, valor, modificador) — editable por admin
+- **CartItem / Cart** (puede contener una `customization` JSON)
+- **Order** (usuario, estado, total, dirección envío, stripePaymentId, fecha)
+- **OrderItem** (producto o `customization` JSON con la ficha de producción)
+- **CustomRequest** (diseño a medida: imagenUrl, tamañoDeseado, notas, estado, presupuesto)
+
+---
+
+## 9. Convenciones de desarrollo
+
+- **Idioma**: UI y contenido en **español**. Código, nombres de variables y comentarios técnicos en inglés; strings de cara al usuario en español (preparar para i18n si más adelante hace falta inglés).
+- **Componentes**: pequeños y reutilizables. El efecto neón siempre vía componentes de `/components/neon`, nunca CSS suelto repetido.
+- **Precios y pagos**: nunca confiar en el cliente. Validar/recalcular en servidor.
+- **Imágenes**: optimizar (`next/image`), formatos modernos (webp/avif). Vigilar el ancho de banda de Supabase.
+- **Accesibilidad**: contraste suficiente pese al fondo oscuro; respetar `prefers-reduced-motion`; textos alternativos.
+- **SEO**: metadatos por página, ya que la tienda depende de ser encontrada en Google.
+- **Secrets**: en variables de entorno (`.env.local`), nunca en el repo. Claves de Stripe/Supabase/Resend fuera de git.
+
+### Comandos (se completan al montar el proyecto)
+```
+npm run dev        # desarrollo local
+npm run build      # build de producción
+npm run lint       # linter
+npx prisma studio  # explorar la BD
+npx prisma migrate dev
+```
+
+---
+
+## 10. Roadmap por fases
+
+1. **Andamiaje**: Next.js + Tailwind + shadcn + Prisma + Supabase + sistema de diseño (paleta, `<NeonText>`, `<NeonBorder>`, loaders). Home básica.
+2. **⭐ Configurador de texto (Modo A)** con preview en vivo y precio en tiempo real — la pieza clave, cuanto antes.
+3. **Catálogo**: productos, categorías, detalle.
+4. **Carrito + Checkout (Stripe)** + emails.
+5. **Diseño a medida (Modo B)**: subida de imagen + selector de tamaño + solicitud de presupuesto.
+6. **Admin**: pedidos, productos, reglas de precio, herramienta interna de personalización.
+7. **Contenido**: FAQ, contacto, políticas (nutrido de la web actual), pulido de SEO y rendimiento.
+
+---
+
+## 10.b Estado actual
+
+- **Fase 1 (andamiaje) ✅**: Next.js 16 + Tailwind v4, sistema de diseño neón (`app/globals.css`), componentes `NeonText/NeonButton/NeonLoader`, home.
+- **Fase 2 (configurador Modo A) ✅ (v1)**: en `/personalizar`.
+  - Opciones (fuentes, colores, tamaños, soportes, uso, fondos): `lib/neon-options.ts`.
+  - Motor de precios PURO (cliente + servidor): `lib/pricing.ts`.
+  - UI: `components/neon/neon-configurator.tsx` + `neon-preview.tsx`.
+  - Las reglas de precio están hardcodeadas en `lib/pricing.ts`/`neon-options.ts` a la espera del admin editable.
+- **Fase 3 (catálogo) ✅ (v1)**:
+  - Productos semilla en `lib/products.ts` (a sustituir por Supabase). 16 productos en 5 categorías.
+  - Catálogo con filtro por categoría (`/productos`) + ficha de detalle con color/tamaño (`/productos/[slug]`, prerenderizada por SEO).
+  - Tarjetas y detalle renderizan el diseño en neón (texto con glow o emoji), sin necesidad de fotos todavía.
+- **Navegación común ✅**: `SiteHeader` (wordmark tipográfico — NO el emblema, ilegible en pequeño — + nav con estado activo + CTA + carrito SVG) y `SiteFooter` en el layout raíz. Contador de carrito en vivo (`CartButton`, evento `cart-updated`).
+- **Carrito ✅ (v1)**: `/carrito` lee `localStorage` (clave `neon_cart`), permite quitar ítems y muestra total. Botón de compra deshabilitado (pagos aplazados).
+- **Páginas base**: `/faq` (contenido a revisar por el propietario), `/diseno-a-medida` (placeholder del Modo B).
+- **Capa de datos ✅ (montada, pendiente de credenciales)**:
+  - **Prisma 7** (generador nuevo `prisma-client`, ESM). Cliente generado en `lib/generated/prisma` (gitignored; se regenera con `postinstall`).
+  - Usa **driver adapter** `@prisma/adapter-pg` (Prisma 7 lo exige) → conexión vía `pg`. Singleton en `lib/prisma.ts`.
+  - Config en `prisma.config.ts` (carga `.env` con dotenv). Esquema en `prisma/schema.prisma` (modelos §8: Profile, Category, Product, PricingRule, Order, OrderItem, CustomRequest + enums). Precios en **céntimos** (`priceCents`).
+  - Clientes Supabase en `lib/supabase/` (`client.ts` navegador/anon, `server.ts` service-role).
+  - Seed idempotente en `prisma/seed.ts` (vuelca `lib/products.ts` + reglas de `lib/neon-options.ts` a la BD).
+  - Variables en `.env.example`. Scripts: `db:migrate`, `db:seed`, `db:studio`.
+  - **ACTIVO ✅**: Supabase conectado y poblado (5 categorías, 16 productos, 9 reglas de precio).
+    - ⚠️ **Conexión**: la red del usuario es IPv4 y el host directo de Supabase (`db.<ref>.supabase.co:5432`) es **IPv6-only** → NO usar. Usar el **Session pooler**: `postgresql://postgres.<ref>:<pass>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`.
+    - ⚠️ **Migraciones**: `prisma migrate dev` falla por la shadow DB (el pooler no permite CREATE DATABASE). Usar **`npx prisma db push`** para sincronizar el esquema. `db seed` funciona con normalidad.
+    - Claves nuevas de Supabase (`sb_publishable_…` = anon, `sb_secret_…` = service_role) ya en `.env`.
+- **Frontend conectado a la BD ✅**:
+  - `lib/catalog.ts` (solo servidor): `getProducts/getCategories/getProductBySlug/getConfiguratorOptions`, con **fallback a los datos semilla** si la BD está vacía o caída.
+  - `/productos` y `/productos/[slug]` leen de la BD (ISR `revalidate = 300`; el admin fuerza refresh con `revalidatePath`).
+  - `/personalizar` carga las reglas de precio de la BD y las pasa a `NeonConfigurator` como prop `options`. `calcPrice(config, options)` acepta reglas dinámicas (`DEFAULT_PRICING` como fallback).
+- **Panel de administración ✅ (v1)** en `/admin`:
+  - **Auth v1**: contraseña única `ADMIN_PASSWORD` (en `.env`) → cookie httpOnly firmada (HMAC) en `lib/admin-auth.ts`. Login en `/admin/login`. Cada página llama `requireAdmin()`. Cuando activemos Supabase Auth, sustituir por rol ADMIN.
+  - Secciones: **Resumen** (contadores + facturación), **Pedidos** (ficha de producción desplegable + cambio de estado), **Solicitudes** a medida (imagen, presupuesto, estado), **Productos** (precio/visibilidad inline), **Precios** (base por tamaño, €/carácter extra, suplemento soporte, multiplicador uso).
+  - Server actions en `app/admin/actions.ts`; tras cada cambio hacen `revalidatePath` de la página pública afectada → los cambios del admin se publican al instante.
+- **Modo B (diseño a medida) ✅**:
+  - `/diseno-a-medida`: formulario real → subida de imagen + selector de tamaño + notas + contacto → crea `CustomRequest` (gestionable en `/admin/solicitudes`). Estados ok/error vía query params.
+  - Imágenes en Supabase Storage, bucket **`disenos`** (público, 6 MB máx, solo png/jpg/webp/svg). Creado con `scripts/setup-storage.mts` (idempotente; ejecutarlo en cada entorno nuevo).
+  - La subida va por server action (`app/diseno-a-medida/actions.ts`) con la service key — el navegador nunca toca Storage. `experimental.serverActions.bodySizeLimit: "8mb"` en `next.config.ts`.
+  - Flujo verificado E2E (upload → URL pública → fila BD → visible en admin).
+- **Listas del admin mejoradas ✅**: controles compartidos en `components/admin/list-controls.tsx` (`StatusFilter` chips, `SearchBox` GET, `Pagination` por enlaces con query params `estado`/`q`/`pagina`).
+  - **Solicitudes**: fecha/hora de recepción, imagen clicable (tamaño completo) + botón **Descargar** (usa el sufijo `?download=` de las URLs públicas de Supabase Storage), filtros por estado, búsqueda nombre/email (insensible a mayúsculas), paginación (10/página).
+  - **Pedidos**: mismos filtros/búsqueda/paginación + hora en la cabecera.
+  - **Catálogo público**: paginación client-side en `ProductCatalog` (12/página, números + ant/sig, se resetea al cambiar de categoría). Todo verificado E2E con datos de prueba.
+- **Pulido visual del catálogo ✅**: `components/shop/neon-stage.tsx` — "escenario" de producto (pared de ladrillo CSS + resplandor ambiental del color del neón + viñeta + brillo extra al hover). Lo usan `ProductCard` y `ProductDetail` para que las previews parezcan fotos de producto y no se fundan con el fondo de la página. Regla de diseño: las previews de producto SIEMPRE sobre `NeonStage`, nunca sobre el fondo plano.
+- **Carrito centralizado + animaciones ✅**: lógica única en `lib/cart.ts` (`readCart/addToCart/removeFromCart`, eventos `cart-updated` y `cart-added`). Animaciones con Framer Motion: badge del header hace "pop" (spring, re-mount por `key={count}`) y toast global `CartToastHost` (montado en el layout raíz; check SVG que se dibuja, autodescarte 3.8s, enlace a /carrito).
+- **Pendiente inmediato**: checkout que cree `Order` en BD validando precio en servidor; emails (Resend) al recibir solicitud/pedido; imágenes reales de producto; alta/edición completa de productos desde admin (hoy solo precio/visibilidad).
+
+## 11. Notas y referencias
+
+- **Web de referencia**: `https://neonledspain.com/` (contenido: FAQ, contacto, categorías). El diseño nuevo la supera.
+- **Assets en repo**: `logo.webp` (usar), `animacion.mp4` (solo referencia, **NO** usar en la web por peso).
+- Este archivo es la fuente de verdad de la arquitectura. Si tomamos una decisión importante nueva, actualízalo aquí.
+- **Next.js 16**: versión reciente con cambios respecto a versiones anteriores. Ante dudas de API, consultar la doc en `node_modules/next/dist/docs/` antes de escribir código.

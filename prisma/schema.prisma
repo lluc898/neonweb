@@ -1,0 +1,161 @@
+// Esquema de datos — Neon Led Spain
+// Prisma 7 (generador ESM). El cliente se genera en lib/generated/prisma.
+// La URL de conexión se lee de DATABASE_URL vía prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------ Enums
+
+enum Role {
+  CUSTOMER
+  ADMIN
+}
+
+enum OrderStatus {
+  NEW // pedido recibido, pendiente de producción
+  IN_PRODUCTION // en fabricación
+  SHIPPED // enviado
+  DELIVERED // entregado
+  CANCELLED // cancelado
+}
+
+enum RequestStatus {
+  NEW // solicitud recibida
+  QUOTED // presupuestada
+  ACCEPTED // aceptada por el cliente
+  REJECTED // descartada
+}
+
+enum OrderItemKind {
+  PRODUCT // producto de catálogo
+  CUSTOM // neón personalizado (configurador)
+}
+
+// --------------------------------------------------------------- Usuarios
+
+/// Perfil ligado a Supabase Auth. `id` = uuid de auth.users.
+model Profile {
+  id        String   @id
+  email     String   @unique
+  name      String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  orders    Order[]
+}
+
+// --------------------------------------------------------------- Catálogo
+
+model Category {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  label    String
+  position Int       @default(0)
+  products Product[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  slug        String      @unique
+  name        String
+  description String      @default("")
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id])
+  /// Precio base (tamaño Mediano) en céntimos.
+  priceCents  Int
+  /// Color neón principal (hex).
+  color       String      @default("#ec1e8c")
+  /// Emoji para diseños de icono/dibujo (opcional).
+  symbol      String?
+  /// URLs de imágenes (Supabase Storage). Vacío = se renderiza en neón.
+  images      String[]    @default([])
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+
+  @@index([categoryId])
+}
+
+// ----------------------------------------------- Reglas de precio (admin)
+
+/// Reglas del configurador editables desde el admin (tamaños, soportes, uso…).
+/// Sustituirán a las constantes de lib/neon-options.ts + lib/pricing.ts.
+model PricingRule {
+  id          String  @id @default(cuid())
+  /// Grupo: SIZE | SUPPORT | USAGE | CHAR
+  group       String
+  /// Código dentro del grupo (p. ej. "m", "exterior", "contorno").
+  code        String
+  label       String
+  /// Importe base o extra, en céntimos.
+  amountCents Int     @default(0)
+  /// Multiplicador (p. ej. uso exterior ×1.25). Nulo si no aplica.
+  multiplier  Float?
+  /// Datos adicionales (dimensiones, caracteres incluidos, etc.).
+  meta        Json?
+
+  @@unique([group, code])
+}
+
+// ---------------------------------------------------------------- Pedidos
+
+model Order {
+  id              String      @id @default(cuid())
+  profileId       String?
+  profile         Profile?    @relation(fields: [profileId], references: [id])
+  status          OrderStatus @default(NEW)
+  /// Total en céntimos.
+  totalCents      Int
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+  shippingAddress Json?
+  stripePaymentId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  items           OrderItem[]
+
+  @@index([status])
+}
+
+model OrderItem {
+  id         String        @id @default(cuid())
+  orderId    String
+  order      Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  kind       OrderItemKind
+  name       String
+  priceCents Int
+  quantity   Int           @default(1)
+  productId  String?
+  product    Product?      @relation(fields: [productId], references: [id])
+  /// Ficha de producción completa del neón personalizado (NeonConfig).
+  customization Json?
+
+  @@index([orderId])
+}
+
+// --------------------------------------------- Solicitudes diseño a medida
+
+/// Modo B: el cliente sube una imagen + tamaño deseado y pedimos presupuesto.
+model CustomRequest {
+  id            String        @id @default(cuid())
+  imageUrl      String?
+  desiredSize   String
+  notes         String        @default("")
+  customerName  String
+  customerEmail String
+  customerPhone String?
+  status        RequestStatus @default(NEW)
+  quoteCents    Int?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([status])
+}
