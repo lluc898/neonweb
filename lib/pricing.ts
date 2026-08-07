@@ -1,18 +1,26 @@
 /**
- * Motor de precios del neón personalizado.
+ * Motor de precios del neón personalizado (v2 — fórmula del fabricante).
  * Función PURA: se usa tanto en cliente (preview de precio en vivo) como en
  * servidor (validación real antes de pagar). El cliente nunca fija el precio final.
  *
- * NOTA: de momento las reglas viven aquí como constantes por defecto. Cuando exista
- * el admin, estas mismas reglas se cargarán desde la BD (tabla PricingRule) y esta
- * función recibirá esos valores como parámetro.
+ * Cálculo según indicaciones del fabricante:
+ *   precio = metros de tubo × €/m  +  m² de material × €/m²  (+ RGB, soporte)
+ *            × uso (exterior)  × entrega (express 24/48 h con plus)
+ *   con pedido mínimo. La potencia (W) se estima de los metros de tubo.
+ *
+ * Las tarifas por defecto viven en lib/neon-options.ts; en producción se
+ * cargan de la BD (PricingRule, editables desde el admin) vía lib/catalog.ts.
  */
 
 import {
+  NEON_DELIVERIES,
+  NEON_RATES,
   NEON_SIZES,
   NEON_SUPPORTS,
   NEON_USAGES,
   type NeonConfig,
+  type NeonDelivery,
+  type NeonRates,
   type NeonSize,
   type NeonSupport,
   type NeonUsage,
@@ -23,21 +31,34 @@ export type PricingOptions = {
   sizes: NeonSize[];
   supports: NeonSupport[];
   usages: NeonUsage[];
+  deliveries: NeonDelivery[];
+  rates: NeonRates;
 };
 
 export const DEFAULT_PRICING: PricingOptions = {
   sizes: NEON_SIZES,
   supports: NEON_SUPPORTS,
   usages: NEON_USAGES,
+  deliveries: NEON_DELIVERIES,
+  rates: NEON_RATES,
 };
 
 export type PriceBreakdown = {
-  base: number;
-  charsExtra: number;
-  extraChars: number;
+  /** Metros de tubo de neón estimados. */
+  tubeM: number;
+  /** m² de material (metacrilato) estimados. */
+  areaM2: number;
+  /** Potencia estimada en vatios. */
+  watts: number;
+  tubeCost: number;
+  materialCost: number;
+  rgbExtra: number;
   support: number;
   subtotal: number;
   usageMultiplier: number;
+  deliveryMultiplier: number;
+  /** true si se aplicó el pedido mínimo. */
+  minApplied: boolean;
   /** Precio final con IVA incluido (redondeado). */
   total: number;
 };
@@ -48,30 +69,71 @@ export function countChars(text: string): number {
 }
 
 export function calcPrice(
-  config: Pick<NeonConfig, "text" | "sizeId" | "supportId" | "usageId">,
+  config: Pick<NeonConfig, "text" | "colorId" | "sizeId" | "supportId" | "usageId" | "deliveryId">,
   options: PricingOptions = DEFAULT_PRICING
 ): PriceBreakdown {
   const size = options.sizes.find((s) => s.id === config.sizeId) ?? options.sizes[0];
   const support =
     options.supports.find((s) => s.id === config.supportId) ?? options.supports[0];
   const usage = options.usages.find((u) => u.id === config.usageId) ?? options.usages[0];
+  const delivery =
+    options.deliveries.find((d) => d.id === config.deliveryId) ?? options.deliveries[0];
+  const { rates } = options;
+  const isRgb = config.colorId === "rgb";
 
-  const chars = countChars(config.text);
-  const extraChars = Math.max(0, chars - size.includedChars);
-  const charsExtra = extraChars * size.perExtraChar;
+  // Geometría estimada a partir del texto
+  const lines = config.text.split("\n").filter((l) => l.trim().length > 0);
+  const lineChars = lines.map((l) => l.replace(/\s/g, "").length);
+  const totalChars = lineChars.reduce((a, b) => a + b, 0);
+  const maxLineChars = Math.max(0, ...lineChars);
 
-  const subtotal = size.basePrice + charsExtra + support.extraPrice;
-  const total = Math.round(subtotal * usage.multiplier);
+  const tubeM = totalChars * size.tubePerCharM;
+  const widthCm = maxLineChars * size.charWidthCm;
+  const heightCm = Math.max(1, lines.length) * size.heightCm;
+  const areaM2 = (widthCm * heightCm) / 10_000;
+
+  // Costes según la fórmula del fabricante
+  const tubeCost = tubeM * rates.perMeter;
+  const materialCost = areaM2 * rates.perM2;
+  const rgbExtra = isRgb ? rates.rgbExtra : 0;
+
+  const subtotal = tubeCost + materialCost + rgbExtra + support.extraPrice;
+  let total = Math.round(subtotal * usage.multiplier * delivery.multiplier);
+
+  const minApplied = totalChars > 0 && total < rates.minTotal;
+  if (minApplied) total = rates.minTotal;
+
+  const watts = Math.round(tubeM * (isRgb ? rates.wattsPerMRgb : rates.wattsPerM));
 
   return {
-    base: size.basePrice,
-    charsExtra,
-    extraChars,
+    tubeM: Math.round(tubeM * 100) / 100,
+    areaM2: Math.round(areaM2 * 1000) / 1000,
+    watts,
+    tubeCost: Math.round(tubeCost),
+    materialCost: Math.round(materialCost),
+    rgbExtra,
     support: support.extraPrice,
-    subtotal,
+    subtotal: Math.round(subtotal),
     usageMultiplier: usage.multiplier,
+    deliveryMultiplier: delivery.multiplier,
+    minApplied,
     total,
   };
+}
+
+/** Precio "desde" de un tamaño (texto corto de referencia, sin extras). */
+export function minPriceForSize(sizeId: string, options: PricingOptions = DEFAULT_PRICING): number {
+  return calcPrice(
+    {
+      text: "neones",
+      colorId: "rosa",
+      sizeId,
+      supportId: options.supports[0]?.id ?? "contorno",
+      usageId: options.usages[0]?.id ?? "interior",
+      deliveryId: options.deliveries[0]?.id ?? "standard",
+    },
+    options
+  ).total;
 }
 
 /** Formatea un importe en euros (es-ES). */

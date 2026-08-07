@@ -7,7 +7,13 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../lib/generated/prisma/client";
 import { PRODUCTS, CATEGORIES } from "../lib/products";
-import { NEON_SIZES, NEON_SUPPORTS, NEON_USAGES } from "../lib/neon-options";
+import {
+  NEON_DELIVERIES,
+  NEON_RATES,
+  NEON_SIZES,
+  NEON_SUPPORTS,
+  NEON_USAGES,
+} from "../lib/neon-options";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -44,20 +50,60 @@ async function main() {
   console.log(`✓ ${PRODUCTS.length} productos`);
 
   // --- Reglas de precio del configurador ---
+  // Tamaños: geometría para estimar tubo/material (fórmula del fabricante).
   for (const s of NEON_SIZES) {
+    const meta = {
+      dimension: s.dimension,
+      heightCm: s.heightCm,
+      charWidthCm: s.charWidthCm,
+      tubePerCharM: s.tubePerCharM,
+    };
     await prisma.pricingRule.upsert({
       where: { group_code: { group: "SIZE", code: s.id } },
-      update: {
-        label: s.label,
-        amountCents: s.basePrice * 100,
-        meta: { dimension: s.dimension, includedChars: s.includedChars, perExtraCharCents: s.perExtraChar * 100 },
-      },
+      update: { label: s.label, meta },
+      create: { group: "SIZE", code: s.id, label: s.label, amountCents: 0, meta },
+    });
+  }
+
+  // Tarifas de fabricación: €/m de tubo, €/m² de material, RGB, mínimo, W/m.
+  const rateRows = [
+    { code: "meter", label: "€ por metro de tubo", amountCents: Math.round(NEON_RATES.perMeter * 100) },
+    { code: "m2", label: "€ por m² de material", amountCents: Math.round(NEON_RATES.perM2 * 100) },
+    { code: "rgb", label: "Suplemento RGB multicolor", amountCents: Math.round(NEON_RATES.rgbExtra * 100) },
+    { code: "min", label: "Pedido mínimo", amountCents: Math.round(NEON_RATES.minTotal * 100) },
+  ];
+  for (const r of rateRows) {
+    await prisma.pricingRule.upsert({
+      where: { group_code: { group: "RATE", code: r.code } },
+      update: { label: r.label, amountCents: r.amountCents },
+      create: { group: "RATE", code: r.code, label: r.label, amountCents: r.amountCents },
+    });
+  }
+  await prisma.pricingRule.upsert({
+    where: { group_code: { group: "RATE", code: "watts" } },
+    update: {
+      label: "Potencia (W por metro)",
+      meta: { wattsPerM: NEON_RATES.wattsPerM, wattsPerMRgb: NEON_RATES.wattsPerMRgb },
+    },
+    create: {
+      group: "RATE",
+      code: "watts",
+      label: "Potencia (W por metro)",
+      meta: { wattsPerM: NEON_RATES.wattsPerM, wattsPerMRgb: NEON_RATES.wattsPerMRgb },
+    },
+  });
+
+  // Entrega: estándar 3-5 días / express 24-48 h con plus.
+  for (const d of NEON_DELIVERIES) {
+    await prisma.pricingRule.upsert({
+      where: { group_code: { group: "DELIVERY", code: d.id } },
+      update: { label: d.label, multiplier: d.multiplier, meta: { eta: d.eta } },
       create: {
-        group: "SIZE",
-        code: s.id,
-        label: s.label,
-        amountCents: s.basePrice * 100,
-        meta: { dimension: s.dimension, includedChars: s.includedChars, perExtraCharCents: s.perExtraChar * 100 },
+        group: "DELIVERY",
+        code: d.id,
+        label: d.label,
+        multiplier: d.multiplier,
+        meta: { eta: d.eta },
       },
     });
   }

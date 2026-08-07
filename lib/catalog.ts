@@ -12,13 +12,17 @@ import {
   type ProductCategory,
 } from "@/lib/products";
 import {
+  NEON_DELIVERIES,
+  NEON_RATES,
   NEON_SIZES,
   NEON_SUPPORTS,
   NEON_USAGES,
+  type NeonDelivery,
   type NeonSize,
   type NeonSupport,
   type NeonUsage,
 } from "@/lib/neon-options";
+import type { PricingOptions } from "@/lib/pricing";
 
 export async function getCategories(): Promise<ProductCategory[]> {
   try {
@@ -75,21 +79,24 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
   }
 }
 
-/** Opciones del configurador (tamaños/soportes/usos) leídas de PricingRule. */
-export type ConfiguratorOptions = {
-  sizes: NeonSize[];
-  supports: NeonSupport[];
-  usages: NeonUsage[];
+/** Opciones del configurador (tarifas + tamaños/soportes/usos/entrega) desde PricingRule. */
+type SizeMeta = {
+  dimension?: string;
+  heightCm?: number;
+  charWidthCm?: number;
+  tubePerCharM?: number;
 };
-
-type SizeMeta = { dimension?: string; includedChars?: number; perExtraCharCents?: number };
 type DescMeta = { description?: string };
+type WattsMeta = { wattsPerM?: number; wattsPerMRgb?: number };
+type EtaMeta = { eta?: string };
 
-export async function getConfiguratorOptions(): Promise<ConfiguratorOptions> {
-  const fallback: ConfiguratorOptions = {
+export async function getConfiguratorOptions(): Promise<PricingOptions> {
+  const fallback: PricingOptions = {
     sizes: NEON_SIZES,
     supports: NEON_SUPPORTS,
     usages: NEON_USAGES,
+    deliveries: NEON_DELIVERIES,
+    rates: NEON_RATES,
   };
   try {
     const rules = await prisma.pricingRule.findMany();
@@ -99,16 +106,17 @@ export async function getConfiguratorOptions(): Promise<ConfiguratorOptions> {
       .filter((r) => r.group === "SIZE")
       .map((r) => {
         const meta = (r.meta ?? {}) as SizeMeta;
+        const def = NEON_SIZES.find((s) => s.id === r.code);
         return {
           id: r.code,
           label: r.label,
-          dimension: meta.dimension ?? "",
-          basePrice: Math.round(r.amountCents / 100),
-          includedChars: meta.includedChars ?? 10,
-          perExtraChar: Math.round((meta.perExtraCharCents ?? 900) / 100),
+          dimension: meta.dimension ?? def?.dimension ?? "",
+          heightCm: meta.heightCm ?? def?.heightCm ?? 20,
+          charWidthCm: meta.charWidthCm ?? def?.charWidthCm ?? 7,
+          tubePerCharM: meta.tubePerCharM ?? def?.tubePerCharM ?? 0.35,
         };
       })
-      .sort((a, b) => a.basePrice - b.basePrice);
+      .sort((a, b) => a.heightCm - b.heightCm);
 
     const supports: NeonSupport[] = rules
       .filter((r) => r.group === "SUPPORT")
@@ -130,8 +138,40 @@ export async function getConfiguratorOptions(): Promise<ConfiguratorOptions> {
       }))
       .sort((a, b) => a.multiplier - b.multiplier);
 
+    const deliveries: NeonDelivery[] = rules
+      .filter((r) => r.group === "DELIVERY")
+      .map((r) => ({
+        id: r.code,
+        label: r.label,
+        eta: ((r.meta ?? {}) as EtaMeta).eta ?? "",
+        multiplier: r.multiplier ?? 1,
+      }))
+      .sort((a, b) => a.multiplier - b.multiplier);
+
+    const rate = (code: string, def: number) => {
+      const r = rules.find((x) => x.group === "RATE" && x.code === code);
+      return r ? r.amountCents / 100 : def;
+    };
+    const wattsRule = rules.find((x) => x.group === "RATE" && x.code === "watts");
+    const wattsMeta = (wattsRule?.meta ?? {}) as WattsMeta;
+
+    const rates = {
+      perMeter: rate("meter", NEON_RATES.perMeter),
+      perM2: rate("m2", NEON_RATES.perM2),
+      rgbExtra: rate("rgb", NEON_RATES.rgbExtra),
+      minTotal: rate("min", NEON_RATES.minTotal),
+      wattsPerM: wattsMeta.wattsPerM ?? NEON_RATES.wattsPerM,
+      wattsPerMRgb: wattsMeta.wattsPerMRgb ?? NEON_RATES.wattsPerMRgb,
+    };
+
     if (!sizes.length) return fallback;
-    return { sizes, supports, usages };
+    return {
+      sizes,
+      supports: supports.length ? supports : NEON_SUPPORTS,
+      usages: usages.length ? usages : NEON_USAGES,
+      deliveries: deliveries.length ? deliveries : NEON_DELIVERIES,
+      rates,
+    };
   } catch {
     return fallback;
   }

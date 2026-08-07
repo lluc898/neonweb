@@ -40,6 +40,7 @@ type Customization = {
   sizeId?: string;
   supportId?: string;
   usageId?: string;
+  deliveryId?: string;
 };
 
 export default async function AdminPedidosPage({
@@ -140,6 +141,7 @@ export default async function AdminPedidosPage({
                             {c.sizeId && <div><dt className="inline font-semibold">Tamaño: </dt><dd className="inline">{c.sizeId}</dd></div>}
                             {c.supportId && <div><dt className="inline font-semibold">Soporte: </dt><dd className="inline">{c.supportId}</dd></div>}
                             {c.usageId && <div><dt className="inline font-semibold">Uso: </dt><dd className="inline">{c.usageId}</dd></div>}
+                            {c.deliveryId && <div><dt className="inline font-semibold">Entrega: </dt><dd className="inline">{c.deliveryId === "express" ? "⚡ Express 24-48 h" : "Estándar 3-5 días"}</dd></div>}
                           </dl>
                         )}
                       </li>

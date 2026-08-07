@@ -9,7 +9,14 @@ import type { NeonConfig } from "@/lib/neon-options";
  */
 
 export type CartItem =
-  | { type: "custom"; config: NeonConfig; price: number; addedAt: number }
+  | {
+      type: "custom";
+      config: NeonConfig;
+      price: number;
+      /** Estimaciones de fabricación (tubo, material, potencia). */
+      specs?: { tubeM: number; areaM2: number; watts: number };
+      addedAt: number;
+    }
   | {
       type: "product";
       slug: string;

@@ -1,13 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { NeonPreview } from "@/components/neon/neon-preview";
+import { SupportPicker } from "@/components/neon/support-picker";
 import { cn } from "@/lib/utils";
 import { addToCart } from "@/lib/cart";
 import {
   calcPrice,
   countChars,
   formatEUR,
+  minPriceForSize,
   DEFAULT_PRICING,
   type PricingOptions,
 } from "@/lib/pricing";
@@ -60,6 +63,8 @@ export function NeonConfigurator({
   const backdrop = findBackdrop(config.backdropId);
   const usage =
     options.usages.find((u) => u.id === config.usageId) ?? options.usages[0];
+  const delivery =
+    options.deliveries.find((d) => d.id === config.deliveryId) ?? options.deliveries[0];
 
   const price = useMemo(() => calcPrice(config, options), [config, options]);
   const chars = countChars(config.text);
@@ -72,7 +77,14 @@ export function NeonConfigurator({
 
   const handleAdd = () => {
     addToCart(
-      { type: "custom", config, price: price.total, addedAt: Date.now() },
+      {
+        type: "custom",
+        config,
+        price: price.total,
+        // Estimaciones de fabricación (ficha de producción)
+        specs: { tubeM: price.tubeM, areaM2: price.areaM2, watts: price.watts },
+        addedAt: Date.now(),
+      },
       config.text.trim() || "Neón personalizado"
     );
     setAdded(true);
@@ -87,6 +99,7 @@ export function NeonConfigurator({
           fontCss={font.cssVar}
           scale={font.scale}
           hex={color.hex}
+          rgb={color.rgb}
           backdropStyle={backdrop.style}
         />
         {/* Selector de fondo */}
@@ -110,7 +123,7 @@ export function NeonConfigurator({
 
         {/* Resumen de precio en desktop */}
         <div className="mt-5 hidden rounded-xl border border-border bg-surface p-5 lg:block">
-          <PricePanel price={price} usageLabel={usage.label} onAdd={handleAdd} added={added} />
+          <PricePanel price={price} usageLabel={usage.label} deliveryLabel={delivery.label} onAdd={handleAdd} added={added} />
         </div>
       </div>
 
@@ -118,19 +131,36 @@ export function NeonConfigurator({
       <div className="rounded-2xl border border-border bg-surface/50 p-6 sm:p-8">
         {/* 1. Texto */}
         <Section n={1} title="Tu texto">
-          <textarea
-            value={config.text}
-            onChange={(e) => set("text", e.target.value.slice(0, MAX_CHARS + 10))}
-            rows={2}
-            maxLength={MAX_CHARS}
-            placeholder="Escribe aquí…"
-            className="w-full resize-none rounded-lg border border-border bg-bg px-4 py-3 text-lg text-text outline-none transition-colors placeholder:text-muted/60 focus:border-neon-cyan"
-          />
-          <div className="mt-1.5 flex justify-between text-xs text-muted">
-            <span>Usa Enter para varias líneas</span>
-            <span className={cn(chars > MAX_CHARS && "text-neon-magenta")}>
-              {chars}/{MAX_CHARS} caracteres
-            </span>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <div>
+              <textarea
+                value={config.text}
+                onChange={(e) => set("text", e.target.value.slice(0, MAX_CHARS + 10))}
+                rows={3}
+                maxLength={MAX_CHARS}
+                placeholder="Escribe aquí…"
+                className="w-full resize-none rounded-lg border border-border bg-bg px-4 py-3 text-lg text-text outline-none transition-colors placeholder:text-muted/60 focus:border-neon-cyan"
+              />
+              <div className="mt-1.5 flex justify-between text-xs text-muted">
+                <span>Usa Enter para varias líneas</span>
+                <span className={cn(chars > MAX_CHARS && "text-neon-magenta")}>
+                  {chars}/{MAX_CHARS} caracteres
+                </span>
+              </div>
+            </div>
+
+            {/* Atajo para quien ya tiene un logo/diseño → Modo B */}
+            <Link
+              href="/diseno-a-medida"
+              className="group flex flex-col items-center justify-center gap-2.5 rounded-lg border border-neon-magenta/40 bg-neon-magenta/5 px-5 py-4 text-center transition-all hover:border-neon-magenta hover:bg-neon-magenta/10 hover:shadow-[0_0_18px_rgba(236,30,140,0.35)] sm:w-44"
+            >
+              <span className="text-sm font-semibold leading-snug text-text">
+                ¿Tienes un logo o diseño propio?
+              </span>
+              <span className="rounded-full border border-neon-magenta/70 px-4 py-1.5 text-xs font-bold uppercase tracking-wide text-neon-magenta transition-shadow group-hover:shadow-[0_0_12px_rgba(236,30,140,0.5)]">
+                Pide presupuesto
+              </span>
+            </Link>
           </div>
         </Section>
 
@@ -178,13 +208,24 @@ export function NeonConfigurator({
                   "h-9 w-9 rounded-full transition-transform hover:scale-110",
                   config.colorId === c.id && "ring-2 ring-white ring-offset-2 ring-offset-surface"
                 )}
-                style={{
-                  backgroundColor: c.hex,
-                  boxShadow: `0 0 10px ${c.hex}`,
-                }}
+                style={
+                  c.rgb
+                    ? {
+                        // Rueda multicolor para el swatch RGB
+                        background:
+                          "conic-gradient(#ff0040, #ff8c1a, #ffe600, #39ff14, #29abe2, #b026ff, #ff0040)",
+                        boxShadow: "0 0 10px rgba(255,255,255,0.45)",
+                      }
+                    : { backgroundColor: c.hex, boxShadow: `0 0 10px ${c.hex}` }
+                }
               />
             ))}
           </div>
+          {color.rgb && (
+            <p className="mt-2 text-xs text-muted">
+              Cambia de color con mando a distancia (incluido). Suplemento aplicado al precio.
+            </p>
+          )}
         </Section>
 
         {/* 4. Tamaño */}
@@ -203,36 +244,28 @@ export function NeonConfigurator({
               >
                 <span className="font-semibold text-text">{s.label}</span>
                 <span className="text-xs text-muted">{s.dimension}</span>
-                <span className="mt-1 text-sm text-text">desde {formatEUR(s.basePrice)}</span>
+                <span className="mt-1 text-sm text-text">
+                  desde {formatEUR(minPriceForSize(s.id, options))}
+                </span>
               </button>
             ))}
           </div>
         </Section>
 
         {/* 5. Soporte */}
-        <Section n={5} title="Soporte / fondo">
-          <div className="flex flex-col gap-2.5">
-            {options.supports.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => set("supportId", s.id)}
-                className={cn(
-                  "flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-all",
-                  config.supportId === s.id
-                    ? "border-neon-cyan bg-neon-cyan/10"
-                    : "border-border bg-bg hover:border-muted"
-                )}
-              >
-                <span>
-                  <span className="block text-sm font-medium text-text">{s.label}</span>
-                  <span className="block text-xs text-muted">{s.description}</span>
-                </span>
-                <span className="text-sm text-muted">
-                  {s.extraPrice ? `+${formatEUR(s.extraPrice)}` : "incluido"}
-                </span>
-              </button>
-            ))}
-          </div>
+        <Section n={5} title="Forma del soporte">
+          <SupportPicker
+            supports={options.supports}
+            value={config.supportId}
+            onChange={(id) => set("supportId", id)}
+            text={config.text}
+            fontCss={font.cssVar}
+            scale={font.scale}
+            hex={color.hex}
+          />
+          <p className="mt-2 text-xs text-muted">
+            Pasa el ratón por encima para ver cómo queda el acrílico.
+          </p>
         </Section>
 
         {/* 6. Uso */}
@@ -256,9 +289,36 @@ export function NeonConfigurator({
           </div>
         </Section>
 
+        {/* 7. Entrega */}
+        <Section n={7} title="Entrega">
+          <div className="grid grid-cols-2 gap-2.5">
+            {options.deliveries.map((d) => (
+              <button
+                key={d.id}
+                onClick={() => set("deliveryId", d.id)}
+                className={cn(
+                  "rounded-lg border p-3 text-left transition-all",
+                  config.deliveryId === d.id
+                    ? "border-neon-cyan bg-neon-cyan/10"
+                    : "border-border bg-bg hover:border-muted"
+                )}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-text">
+                  {d.id === "express" && <span aria-hidden>⚡</span>}
+                  {d.label}
+                </span>
+                <span className="block text-xs text-muted">{d.eta}</span>
+                <span className="block text-xs text-muted">
+                  {d.multiplier > 1 ? `+${Math.round((d.multiplier - 1) * 100)}% fabricación urgente` : "incluida"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Section>
+
         {/* Precio en móvil (sticky abajo) */}
         <div className="mt-6 rounded-xl border border-border bg-surface p-5 lg:hidden">
-          <PricePanel price={price} usageLabel={usage.label} onAdd={handleAdd} added={added} />
+          <PricePanel price={price} usageLabel={usage.label} deliveryLabel={delivery.label} onAdd={handleAdd} added={added} />
         </div>
       </div>
     </div>
@@ -269,11 +329,13 @@ export function NeonConfigurator({
 function PricePanel({
   price,
   usageLabel,
+  deliveryLabel,
   onAdd,
   added,
 }: {
   price: ReturnType<typeof calcPrice>;
   usageLabel: string;
+  deliveryLabel: string;
   onAdd: () => void;
   added: boolean;
 }) {
@@ -287,16 +349,24 @@ function PricePanel({
         </div>
       </div>
 
-      {/* Desglose */}
+      {/* Desglose según fabricación */}
       <ul className="mt-3 space-y-1 text-xs text-muted">
-        <li className="flex justify-between">
-          <span>Base tamaño</span>
-          <span>{formatEUR(price.base)}</span>
-        </li>
-        {price.charsExtra > 0 && (
+        {price.tubeM > 0 && (
           <li className="flex justify-between">
-            <span>Texto largo (+{price.extraChars} caract.)</span>
-            <span>+{formatEUR(price.charsExtra)}</span>
+            <span>Tubo de neón ({price.tubeM.toLocaleString("es-ES")} m)</span>
+            <span>{formatEUR(price.tubeCost)}</span>
+          </li>
+        )}
+        {price.areaM2 > 0 && (
+          <li className="flex justify-between">
+            <span>Material ({price.areaM2.toLocaleString("es-ES")} m²)</span>
+            <span>{formatEUR(price.materialCost)}</span>
+          </li>
+        )}
+        {price.rgbExtra > 0 && (
+          <li className="flex justify-between">
+            <span>RGB multicolor</span>
+            <span>+{formatEUR(price.rgbExtra)}</span>
           </li>
         )}
         {price.support > 0 && (
@@ -307,11 +377,30 @@ function PricePanel({
         )}
         {price.usageMultiplier !== 1 && (
           <li className="flex justify-between">
-            <span>{usageLabel} (×{price.usageMultiplier})</span>
-            <span>+{formatEUR(price.total - price.subtotal)}</span>
+            <span>{usageLabel}</span>
+            <span>×{price.usageMultiplier.toLocaleString("es-ES")}</span>
+          </li>
+        )}
+        {price.deliveryMultiplier !== 1 && (
+          <li className="flex justify-between">
+            <span>⚡ Entrega {deliveryLabel.toLowerCase()}</span>
+            <span>×{price.deliveryMultiplier.toLocaleString("es-ES")}</span>
+          </li>
+        )}
+        {price.minApplied && (
+          <li className="flex justify-between">
+            <span>Pedido mínimo</span>
+            <span>{formatEUR(price.total)}</span>
           </li>
         )}
       </ul>
+
+      {/* Potencia estimada (informativo) */}
+      {price.watts > 0 && (
+        <p className="mt-2 border-t border-border/60 pt-2 text-xs text-muted">
+          Potencia aprox.: <span className="text-text">{price.watts} W</span> · transformador incluido
+        </p>
+      )}
 
       <button
         onClick={onAdd}

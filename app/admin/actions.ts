@@ -148,13 +148,13 @@ export async function updatePricingRuleAction(formData: FormData) {
   const rule = await prisma.pricingRule.findUnique({ where: { id } });
   if (!rule) return;
 
-  const amountEuros = Number(formData.get("amount"));
   const data: {
     amountCents?: number;
     multiplier?: number;
     meta?: object;
   } = {};
 
+  const amountEuros = Number(formData.get("amount"));
   if (Number.isFinite(amountEuros) && amountEuros >= 0) {
     data.amountCents = Math.round(amountEuros * 100);
   }
@@ -164,11 +164,18 @@ export async function updatePricingRuleAction(formData: FormData) {
     data.multiplier = multiplier;
   }
 
-  // Recargo por carácter extra (solo tamaños).
-  const perExtraChar = Number(formData.get("perExtraChar"));
-  if (rule.group === "SIZE" && Number.isFinite(perExtraChar) && perExtraChar >= 0) {
+  // Campos de meta numéricos (geometría de tamaños, potencia W/m).
+  const metaFields = ["heightCm", "charWidthCm", "tubePerCharM", "wattsPerM", "wattsPerMRgb"] as const;
+  const metaUpdates: Record<string, number> = {};
+  for (const field of metaFields) {
+    const value = Number(formData.get(field));
+    if (formData.has(field) && Number.isFinite(value) && value > 0) {
+      metaUpdates[field] = value;
+    }
+  }
+  if (Object.keys(metaUpdates).length) {
     const meta = (rule.meta ?? {}) as Record<string, unknown>;
-    data.meta = { ...meta, perExtraCharCents: Math.round(perExtraChar * 100) };
+    data.meta = { ...meta, ...metaUpdates };
   }
 
   await prisma.pricingRule.update({ where: { id }, data });

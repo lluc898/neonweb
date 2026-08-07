@@ -43,6 +43,8 @@ export type NeonColor = {
   id: string;
   label: string;
   hex: string;
+  /** RGB multicolor: el tubo cambia de color (mando incluido). Lleva suplemento. */
+  rgb?: boolean;
 };
 
 export const NEON_COLORS: NeonColor[] = [
@@ -57,6 +59,7 @@ export const NEON_COLORS: NeonColor[] = [
   { id: "cian", label: "Cian", hex: "#29abe2" },
   { id: "azul", label: "Azul", hex: "#2b6bff" },
   { id: "morado", label: "Morado", hex: "#b026ff" },
+  { id: "rgb", label: "RGB multicolor", hex: "#ff0040", rgb: true },
 ];
 
 export type NeonSize = {
@@ -64,18 +67,19 @@ export type NeonSize = {
   label: string;
   /** Ancho máximo aproximado, para comunicar tamaño al cliente. */
   dimension: string;
-  basePrice: number;
-  /** Caracteres incluidos antes del recargo por longitud. */
-  includedChars: number;
-  /** Recargo por cada carácter extra. */
-  perExtraChar: number;
+  /** Altura de letra aproximada (cm) — para estimar el m² de material. */
+  heightCm: number;
+  /** Ancho medio por carácter (cm), espaciado incluido. */
+  charWidthCm: number;
+  /** Metros de tubo de neón por carácter (estimación de fabricación). */
+  tubePerCharM: number;
 };
 
 export const NEON_SIZES: NeonSize[] = [
-  { id: "s", label: "Pequeño", dimension: "hasta 50 cm", basePrice: 149, includedChars: 8, perExtraChar: 7 },
-  { id: "m", label: "Mediano", dimension: "hasta 80 cm", basePrice: 219, includedChars: 12, perExtraChar: 9 },
-  { id: "l", label: "Grande", dimension: "hasta 100 cm", basePrice: 299, includedChars: 16, perExtraChar: 11 },
-  { id: "xl", label: "Gigante", dimension: "hasta 150 cm", basePrice: 399, includedChars: 20, perExtraChar: 13 },
+  { id: "s", label: "Pequeño", dimension: "hasta 50 cm", heightCm: 15, charWidthCm: 5.5, tubePerCharM: 0.25 },
+  { id: "m", label: "Mediano", dimension: "hasta 80 cm", heightCm: 20, charWidthCm: 7, tubePerCharM: 0.35 },
+  { id: "l", label: "Grande", dimension: "hasta 100 cm", heightCm: 27, charWidthCm: 9, tubePerCharM: 0.45 },
+  { id: "xl", label: "Gigante", dimension: "hasta 150 cm", heightCm: 35, charWidthCm: 12, tubePerCharM: 0.55 },
 ];
 
 export type NeonSupport = {
@@ -86,9 +90,30 @@ export type NeonSupport = {
 };
 
 export const NEON_SUPPORTS: NeonSupport[] = [
-  { id: "contorno", label: "Corte al contorno", description: "El acrílico sigue la forma del diseño", extraPrice: 0 },
-  { id: "rectangulo", label: "Rectángulo", description: "Base rectangular transparente", extraPrice: 19 },
-  { id: "redondeado", label: "Rect. redondeado", description: "Base con esquinas redondeadas", extraPrice: 25 },
+  {
+    id: "contorno",
+    label: "Corte a la forma",
+    description: "El acrílico rodea el diseño con un pequeño margen. Para colgar o montar en pared.",
+    extraPrice: 0,
+  },
+  {
+    id: "letras",
+    label: "Corte a la letra",
+    description: "El acrílico se corta pegado a cada letra: casi no se ve respaldo. El acabado más limpio.",
+    extraPrice: 39,
+  },
+  {
+    id: "rectangulo",
+    label: "Rectángulo",
+    description: "Panel rectangular transparente detrás del neón, con separadores a la pared.",
+    extraPrice: 19,
+  },
+  {
+    id: "redondeado",
+    label: "Rect. redondeado",
+    description: "Igual que el rectangular, pero con las esquinas redondeadas.",
+    extraPrice: 25,
+  },
 ];
 
 export type NeonUsage = {
@@ -103,6 +128,44 @@ export const NEON_USAGES: NeonUsage[] = [
   { id: "exterior", label: "Exterior", description: "Resistente al agua (IP65)", multiplier: 1.25 },
 ];
 
+/** Plazos de entrega (indicación del fabricante: estándar 3-5 días, express 24/48 h con plus). */
+export type NeonDelivery = {
+  id: string;
+  label: string;
+  eta: string;
+  multiplier: number;
+};
+
+export const NEON_DELIVERIES: NeonDelivery[] = [
+  { id: "standard", label: "Estándar", eta: "3-5 días hábiles", multiplier: 1 },
+  { id: "express", label: "Express", eta: "24-48 h", multiplier: 1.2 },
+];
+
+/** Tarifas de fabricación (la fórmula real: metros de tubo + m² de material). */
+export type NeonRates = {
+  /** € por metro de tubo de neón. */
+  perMeter: number;
+  /** € por m² de metacrilato/material. */
+  perM2: number;
+  /** Suplemento fijo por RGB multicolor. */
+  rgbExtra: number;
+  /** Pedido mínimo (el total nunca baja de aquí). */
+  minTotal: number;
+  /** Potencia por metro de tubo (W/m) — informativo. */
+  wattsPerM: number;
+  /** Potencia por metro si es RGB (W/m). */
+  wattsPerMRgb: number;
+};
+
+export const NEON_RATES: NeonRates = {
+  perMeter: 45,
+  perM2: 300,
+  rgbExtra: 49,
+  minTotal: 119,
+  wattsPerM: 12,
+  wattsPerMRgb: 14,
+};
+
 /** Configuración completa de un neón personalizado (ficha de producción). */
 export type NeonConfig = {
   text: string;
@@ -111,6 +174,7 @@ export type NeonConfig = {
   sizeId: string;
   supportId: string;
   usageId: string;
+  deliveryId: string;
   backdropId: string;
 };
 
@@ -121,6 +185,7 @@ export const DEFAULT_CONFIG: NeonConfig = {
   sizeId: "m",
   supportId: "contorno",
   usageId: "interior",
+  deliveryId: "standard",
   backdropId: "ladrillo",
 };
 

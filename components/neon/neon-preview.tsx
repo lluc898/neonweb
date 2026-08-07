@@ -8,6 +8,8 @@ type NeonPreviewProps = {
   fontCss: string;
   scale: number;
   hex: string;
+  /** RGB multicolor: anima el matiz del neón en bucle. */
+  rgb?: boolean;
   backdropStyle: CSSProperties;
 };
 
@@ -16,7 +18,7 @@ type NeonPreviewProps = {
  * resplandor elegidos sobre un fondo que simula una pared, para que el cliente
  * se imagine el neón en su espacio.
  */
-export function NeonPreview({ text, fontCss, scale, hex, backdropStyle }: NeonPreviewProps) {
+export function NeonPreview({ text, fontCss, scale, hex, rgb, backdropStyle }: NeonPreviewProps) {
   const lines = (text.length ? text : "Tu texto").split("\n");
   const longest = Math.max(...lines.map((l) => l.length), 1);
   const fontRem = Math.max(1.3, Math.min(4.2, 34 / longest)) * scale;
@@ -30,8 +32,8 @@ export function NeonPreview({ text, fontCss, scale, hex, backdropStyle }: NeonPr
       {/* reflejo tenue en el suelo */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white/5 to-transparent" />
       <div
-        key={`${fontCss}-${hex}`}
-        className="animate-flicker text-center leading-tight break-words"
+        key={`${fontCss}-${hex}-${rgb}`}
+        className={`animate-flicker text-center leading-tight break-words ${rgb ? "animate-rgb" : ""}`}
         style={{
           fontFamily: fontCss,
           color: hex,

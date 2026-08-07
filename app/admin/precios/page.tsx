@@ -2,21 +2,34 @@ import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
 import { updatePricingRuleAction } from "../actions";
 
-type SizeMeta = { dimension?: string; includedChars?: number; perExtraCharCents?: number };
+export const metadata = { title: "Precios" };
+
+type SizeMeta = { dimension?: string; heightCm?: number; charWidthCm?: number; tubePerCharM?: number };
+type WattsMeta = { wattsPerM?: number; wattsPerMRgb?: number };
+type EtaMeta = { eta?: string };
+
+const inputCls =
+  "w-24 rounded-md border border-border bg-bg px-3 py-1.5 text-text outline-none focus:border-neon-cyan";
+const saveCls =
+  "rounded-full border border-neon-cyan/60 px-4 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10";
 
 export default async function AdminPreciosPage() {
   await requireAdmin();
 
   const rules = await prisma.pricingRule.findMany();
-  const sizes = rules
-    .filter((r) => r.group === "SIZE")
-    .sort((a, b) => a.amountCents - b.amountCents);
-  const supports = rules
-    .filter((r) => r.group === "SUPPORT")
-    .sort((a, b) => a.amountCents - b.amountCents);
-  const usages = rules
-    .filter((r) => r.group === "USAGE")
-    .sort((a, b) => (a.multiplier ?? 1) - (b.multiplier ?? 1));
+  const byGroup = (g: string) => rules.filter((r) => r.group === g);
+
+  const rates = byGroup("RATE").filter((r) => r.code !== "watts");
+  const watts = rules.find((r) => r.group === "RATE" && r.code === "watts");
+  const wattsMeta = (watts?.meta ?? {}) as WattsMeta;
+  const deliveries = byGroup("DELIVERY").sort((a, b) => (a.multiplier ?? 1) - (b.multiplier ?? 1));
+  const sizes = byGroup("SIZE").sort((a, b) => {
+    const ha = ((a.meta ?? {}) as SizeMeta).heightCm ?? 0;
+    const hb = ((b.meta ?? {}) as SizeMeta).heightCm ?? 0;
+    return ha - hb;
+  });
+  const supports = byGroup("SUPPORT").sort((a, b) => a.amountCents - b.amountCents);
+  const usages = byGroup("USAGE").sort((a, b) => (a.multiplier ?? 1) - (b.multiplier ?? 1));
 
   return (
     <main className="space-y-10">
@@ -25,23 +38,95 @@ export default async function AdminPreciosPage() {
           Precios del configurador
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Estos valores alimentan el configurador de neones personalizados. Los
-          cambios se aplican al momento.
+          Fórmula de fabricación: metros de tubo × €/m + m² de material × €/m² (+RGB,
+          soporte) × uso × entrega. Los cambios se aplican al momento.
         </p>
       </div>
 
-      {/* Tamaños */}
+      {/* Tarifas de fabricación */}
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
-          Precio por tamaño
+          Tarifas de fabricación
+        </h2>
+        <div className="space-y-2">
+          {rates.map((r) => (
+            <form
+              key={r.id}
+              action={updatePricingRuleAction}
+              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+            >
+              <input type="hidden" name="id" value={r.id} />
+              <span className="flex-1 font-medium text-text">{r.label}</span>
+              <span className="text-xs text-muted">€</span>
+              <input type="number" name="amount" min={0} step="0.5" defaultValue={r.amountCents / 100} className={inputCls} />
+              <button className={saveCls}>Guardar</button>
+            </form>
+          ))}
+
+          {watts && (
+            <form
+              action={updatePricingRuleAction}
+              className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+            >
+              <input type="hidden" name="id" value={watts.id} />
+              <span className="flex-1 font-medium text-text">{watts.label}</span>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                Normal
+                <input type="number" name="wattsPerM" min={1} step="1" defaultValue={wattsMeta.wattsPerM ?? 12} className={inputCls} />
+              </label>
+              <label className="flex items-center gap-2 text-xs text-muted">
+                RGB
+                <input type="number" name="wattsPerMRgb" min={1} step="1" defaultValue={wattsMeta.wattsPerMRgb ?? 14} className={inputCls} />
+              </label>
+              <button className={saveCls}>Guardar</button>
+            </form>
+          )}
+        </div>
+      </section>
+
+      {/* Entrega */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+          Entrega
+        </h2>
+        <div className="space-y-2">
+          {deliveries.map((r) => (
+            <form
+              key={r.id}
+              action={updatePricingRuleAction}
+              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+            >
+              <input type="hidden" name="id" value={r.id} />
+              <span className="flex-1 font-medium text-text">
+                {r.label}
+                <span className="ml-2 text-xs font-normal text-muted">
+                  {((r.meta ?? {}) as EtaMeta).eta}
+                </span>
+              </span>
+              <span className="text-xs text-muted">×</span>
+              <input type="number" name="multiplier" min={1} step="0.05" defaultValue={r.multiplier ?? 1} className={inputCls} />
+              <button className={saveCls}>Guardar</button>
+            </form>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          Express 24/48 h: el plus es el multiplicador (p. ej. 1,2 = +20%).
+        </p>
+      </section>
+
+      {/* Tamaños (geometría para las estimaciones) */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+          Tamaños — geometría de estimación
         </h2>
         <div className="overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[560px] text-sm">
+          <table className="w-full min-w-[680px] text-sm">
             <thead>
               <tr className="border-b border-border bg-surface text-left text-xs uppercase tracking-wider text-muted">
                 <th className="px-4 py-3">Tamaño</th>
-                <th className="px-4 py-3">Base (€)</th>
-                <th className="px-4 py-3">€/carácter extra</th>
+                <th className="px-4 py-3">Altura letra (cm)</th>
+                <th className="px-4 py-3">Ancho/letra (cm)</th>
+                <th className="px-4 py-3">Tubo/letra (m)</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -54,28 +139,13 @@ export default async function AdminPreciosPage() {
                       <span className="font-medium text-text">{r.label}</span>
                       <span className="ml-2 text-xs text-muted">{meta.dimension}</span>
                     </td>
-                    <td className="px-4 py-3" colSpan={3}>
-                      <form action={updatePricingRuleAction} className="flex items-center gap-4">
+                    <td className="px-4 py-3" colSpan={4}>
+                      <form action={updatePricingRuleAction} className="flex items-center gap-6">
                         <input type="hidden" name="id" value={r.id} />
-                        <input
-                          type="number"
-                          name="amount"
-                          min={0}
-                          step="1"
-                          defaultValue={Math.round(r.amountCents / 100)}
-                          className="w-24 rounded-md border border-border bg-bg px-3 py-1.5 text-text outline-none focus:border-neon-cyan"
-                        />
-                        <input
-                          type="number"
-                          name="perExtraChar"
-                          min={0}
-                          step="1"
-                          defaultValue={Math.round((meta.perExtraCharCents ?? 0) / 100)}
-                          className="w-24 rounded-md border border-border bg-bg px-3 py-1.5 text-text outline-none focus:border-neon-cyan"
-                        />
-                        <button className="rounded-full border border-neon-cyan/60 px-4 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10">
-                          Guardar
-                        </button>
+                        <input type="number" name="heightCm" min={1} step="1" defaultValue={meta.heightCm ?? 20} className={inputCls} />
+                        <input type="number" name="charWidthCm" min={1} step="0.5" defaultValue={meta.charWidthCm ?? 7} className={inputCls} />
+                        <input type="number" name="tubePerCharM" min={0.05} step="0.05" defaultValue={meta.tubePerCharM ?? 0.35} className={inputCls} />
+                        <button className={saveCls}>Guardar</button>
                       </form>
                     </td>
                   </tr>
@@ -84,6 +154,9 @@ export default async function AdminPreciosPage() {
             </tbody>
           </table>
         </div>
+        <p className="mt-2 text-xs text-muted">
+          Estos valores estiman los metros de tubo y el m² de material a partir del texto.
+        </p>
       </section>
 
       {/* Soportes */}
@@ -96,22 +169,13 @@ export default async function AdminPreciosPage() {
             <form
               key={r.id}
               action={updatePricingRuleAction}
-              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5"
+              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
             >
               <input type="hidden" name="id" value={r.id} />
-              <span className="flex-1 text-sm font-medium text-text">{r.label}</span>
+              <span className="flex-1 font-medium text-text">{r.label}</span>
               <span className="text-xs text-muted">+€</span>
-              <input
-                type="number"
-                name="amount"
-                min={0}
-                step="1"
-                defaultValue={Math.round(r.amountCents / 100)}
-                className="w-24 rounded-md border border-border bg-bg px-3 py-1.5 text-sm text-text outline-none focus:border-neon-cyan"
-              />
-              <button className="rounded-full border border-neon-cyan/60 px-4 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10">
-                Guardar
-              </button>
+              <input type="number" name="amount" min={0} step="1" defaultValue={r.amountCents / 100} className={inputCls} />
+              <button className={saveCls}>Guardar</button>
             </form>
           ))}
         </div>
@@ -127,22 +191,13 @@ export default async function AdminPreciosPage() {
             <form
               key={r.id}
               action={updatePricingRuleAction}
-              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5"
+              className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
             >
               <input type="hidden" name="id" value={r.id} />
-              <span className="flex-1 text-sm font-medium text-text">{r.label}</span>
+              <span className="flex-1 font-medium text-text">{r.label}</span>
               <span className="text-xs text-muted">×</span>
-              <input
-                type="number"
-                name="multiplier"
-                min={0.5}
-                step="0.05"
-                defaultValue={r.multiplier ?? 1}
-                className="w-24 rounded-md border border-border bg-bg px-3 py-1.5 text-sm text-text outline-none focus:border-neon-cyan"
-              />
-              <button className="rounded-full border border-neon-cyan/60 px-4 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10">
-                Guardar
-              </button>
+              <input type="number" name="multiplier" min={0.5} step="0.05" defaultValue={r.multiplier ?? 1} className={inputCls} />
+              <button className={saveCls}>Guardar</button>
             </form>
           ))}
         </div>

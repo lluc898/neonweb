@@ -129,9 +129,48 @@ body {
   animation: neon-pulse 1.6s ease-in-out infinite;
 }
 
+/* RGB multicolor: rota el matiz del color base (texto + glow a la vez). */
+@keyframes rgb-cycle {
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+
+.animate-rgb {
+  animation: rgb-cycle 6s linear infinite;
+}
+
+/* Si conviven parpadeo + RGB, se ejecutan ambas animaciones a la vez. */
+.animate-flicker.animate-rgb {
+  animation:
+    neon-flicker 3.5s infinite alternate,
+    rgb-cycle 6s linear infinite;
+}
+
+/* Destello que recorre el acrílico al pasar el ratón (selector de soporte). */
+@keyframes acrylic-shine {
+  from {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  to {
+    transform: translateX(240%) skewX(-18deg);
+  }
+}
+
+.group:hover .acrylic-shine,
+.group:focus-visible .acrylic-shine {
+  animation: acrylic-shine 1.15s ease-in-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-flicker,
-  .animate-neon-pulse {
+  .animate-neon-pulse,
+  .animate-rgb {
+    animation: none !important;
+  }
+
+  .group:hover .acrylic-shine,
+  .group:focus-visible .acrylic-shine {
     animation: none !important;
   }
 }
