@@ -141,6 +141,58 @@ model OrderItem {
   @@index([orderId])
 }
 
+// ----------------------------------------------------- Seguridad del admin
+
+/// Trabajador con acceso al panel. Cada uno tiene su contraseña (scrypt) y su
+/// propio 2FA TOTP (obligatorio: se fuerza el alta en el primer login).
+model AdminUser {
+  id                String         @id @default(cuid())
+  username          String         @unique
+  passwordHash      String
+  /// Solo el superadmin gestiona usuarios (crear, desactivar, resetear).
+  isSuperadmin      Boolean        @default(false)
+  active            Boolean        @default(true)
+  /// Secreto TOTP activo (null = todavía sin configurar).
+  totpSecret        String?
+  /// Secreto pendiente durante el alta (aún sin confirmar con un código).
+  totpPendingSecret String?
+  /// Anti-replay: último time-step TOTP consumido.
+  totpLastStep      Int            @default(0)
+  createdAt         DateTime       @default(now())
+  sessions          AdminSession[]
+}
+
+/// Sesión de administración: token aleatorio (se guarda su SHA-256, nunca el
+/// token en claro). Revocable individualmente o en bloque.
+model AdminSession {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  userId      String
+  user        AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// true mientras el usuario aún no ha confirmado su 2FA (solo puede
+  /// acceder a la pantalla de activación).
+  pendingTotp Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  lastUsedAt  DateTime  @default(now())
+  ip          String?
+  userAgent   String?
+
+  @@index([expiresAt])
+  @@index([userId])
+}
+
+/// Registro de intentos de login (rate-limiting y auditoría).
+model AdminLoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+  @@index([createdAt])
+}
+
 // --------------------------------------------- Solicitudes diseño a medida
 
 /// Modo B: el cliente sube una imagen + tamaño deseado y pedimos presupuesto.

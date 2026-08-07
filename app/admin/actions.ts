@@ -1,39 +1,122 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import {
-  ADMIN_COOKIE,
-  passwordMatches,
+  confirmTotpEnrollment,
+  destroyAllSessions,
+  destroyCurrentSession,
+  getSession,
+  performLogin,
   requireAdmin,
-  sessionToken,
+  requireSuperadmin,
 } from "@/lib/admin-auth";
+import { hashPassword } from "@/lib/password";
 import type { OrderStatus, RequestStatus } from "@/lib/generated/prisma/enums";
 
 // ------------------------------------------------------------------ Sesión
 
 export async function loginAction(formData: FormData) {
+  const username = String(formData.get("username") ?? "");
   const password = String(formData.get("password") ?? "");
-  if (!passwordMatches(password)) {
-    redirect("/admin/login?error=1");
-  }
-  const jar = await cookies();
-  jar.set(ADMIN_COOKIE, sessionToken(), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7, // 7 días
-    path: "/",
-  });
-  redirect("/admin");
+  const totp = String(formData.get("totp") ?? "");
+
+  const result = await performLogin(username, password, totp);
+  if (result === "ok") redirect("/admin");
+  if (result === "enroll") redirect("/admin/activar-2fa");
+  redirect(`/admin/login?error=${result}`);
 }
 
 export async function logoutAction() {
-  const jar = await cookies();
-  jar.delete(ADMIN_COOKIE);
+  await destroyCurrentSession();
   redirect("/admin/login");
+}
+
+/** Cierra TODAS las sesiones de todos los usuarios (pánico). Solo superadmin. */
+export async function logoutEverywhereAction() {
+  await requireSuperadmin();
+  await destroyAllSessions();
+  await destroyCurrentSession();
+  redirect("/admin/login");
+}
+
+/** Confirma la activación del 2FA (primer login) con un código del móvil. */
+export async function confirmTotpAction(formData: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/admin/login");
+  const code = String(formData.get("code") ?? "");
+  const ok = await confirmTotpEnrollment(session, code);
+  redirect(ok ? "/admin" : "/admin/activar-2fa?error=code");
+}
+
+// ------------------------------------------------- Gestión de usuarios
+
+const USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
+
+export async function createUserAction(formData: FormData) {
+  await requireSuperadmin();
+  const username = String(formData.get("username") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+
+  if (!USERNAME_RE.test(username)) redirect("/admin/usuarios?error=username");
+  if (password.length < 10) redirect("/admin/usuarios?error=password");
+
+  const exists = await prisma.adminUser.findUnique({ where: { username } });
+  if (exists) redirect("/admin/usuarios?error=exists");
+
+  await prisma.adminUser.create({
+    data: { username, passwordHash: await hashPassword(password) },
+  });
+  revalidatePath("/admin/usuarios");
+  redirect("/admin/usuarios?ok=created");
+}
+
+export async function setUserActiveAction(formData: FormData) {
+  const session = await requireSuperadmin();
+  const id = String(formData.get("id"));
+  const active = formData.get("active") === "true";
+
+  const target = await prisma.adminUser.findUnique({ where: { id } });
+  if (!target) return;
+  // Nadie desactiva al superadmin ni a sí mismo.
+  if (target.isSuperadmin || target.id === session.user.id) return;
+
+  await prisma.adminUser.update({ where: { id }, data: { active } });
+  if (!active) {
+    await prisma.adminSession.deleteMany({ where: { userId: id } });
+  }
+  revalidatePath("/admin/usuarios");
+}
+
+/** Resetea la contraseña de un usuario (y cierra sus sesiones). */
+export async function resetUserPasswordAction(formData: FormData) {
+  await requireSuperadmin();
+  const id = String(formData.get("id"));
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 10) redirect("/admin/usuarios?error=password");
+
+  await prisma.adminUser.update({
+    where: { id },
+    data: { passwordHash: await hashPassword(password) },
+  });
+  await prisma.adminSession.deleteMany({ where: { userId: id } });
+  revalidatePath("/admin/usuarios");
+  redirect("/admin/usuarios?ok=password");
+}
+
+/** Resetea el 2FA (móvil perdido): el usuario lo reconfigura en su próximo login. */
+export async function resetUserTotpAction(formData: FormData) {
+  await requireSuperadmin();
+  const id = String(formData.get("id"));
+
+  await prisma.adminUser.update({
+    where: { id },
+    data: { totpSecret: null, totpPendingSecret: null, totpLastStep: 0 },
+  });
+  await prisma.adminSession.deleteMany({ where: { userId: id } });
+  revalidatePath("/admin/usuarios");
+  redirect("/admin/usuarios?ok=totp");
 }
 
 // --------------------------------------------------------------- Productos

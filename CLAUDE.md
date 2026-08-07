@@ -279,9 +279,18 @@ npx prisma migrate dev
   - `lib/catalog.ts` (solo servidor): `getProducts/getCategories/getProductBySlug/getConfiguratorOptions`, con **fallback a los datos semilla** si la BD está vacía o caída.
   - `/productos` y `/productos/[slug]` leen de la BD (ISR `revalidate = 300`; el admin fuerza refresh con `revalidatePath`).
   - `/personalizar` carga las reglas de precio de la BD y las pasa a `NeonConfigurator` como prop `options`. `calcPrice(config, options)` acepta reglas dinámicas (`DEFAULT_PRICING` como fallback).
-- **Panel de administración ✅ (v1)** en `/admin`:
-  - **Auth v1**: contraseña única `ADMIN_PASSWORD` (en `.env`) → cookie httpOnly firmada (HMAC) en `lib/admin-auth.ts`. Login en `/admin/login`. Cada página llama `requireAdmin()`. Cuando activemos Supabase Auth, sustituir por rol ADMIN.
-  - Secciones: **Resumen** (contadores + facturación), **Pedidos** (ficha de producción desplegable + cambio de estado), **Solicitudes** a medida (imagen, presupuesto, estado), **Productos** (precio/visibilidad inline), **Precios** (base por tamaño, €/carácter extra, suplemento soporte, multiplicador uso).
+- **Panel de administración ✅ (v2, endurecido)** en `/admin`:
+  - **Panel independiente**: la tienda vive en el route group `app/(shop)/` (con `SiteHeader/SiteFooter/CartToastHost` en su layout); el admin tiene su propio shell (`app/admin/layout.tsx`) con barra propia, nav y botón "Cerrar sesión". El layout raíz solo pone fuentes/body.
+  - **Auth v3 — multi-usuario (lib/admin-auth.ts + lib/password.ts)**:
+    - **`AdminUser`**: cada trabajador tiene usuario + contraseña (hash **scrypt**, formato `scrypt:N:r:p:salt:hash` — ⚠️ separador `:` porque el loader de .env de Next expande `$var`) + **su propio 2FA TOTP**.
+    - **2FA OBLIGATORIO**: el primer login crea una sesión `pendingTotp` que solo permite `/admin/activar-2fa` (QR + clave manual, libs `otpauth` + `qrcode`); hasta confirmar el código no se entra al panel. Anti-replay por time-step y por usuario.
+    - **Superadmin** (usuario `admin`, flag `isSuperadmin`): gestiona usuarios en `/admin/usuarios` — crear (contraseña inicial ≥10 chars), desactivar/reactivar, resetear contraseña y resetear 2FA (móvil perdido); todo cierra las sesiones del afectado. No puede desactivarse a sí mismo ni al superadmin.
+    - **Bootstrap**: `prisma/seed.ts` crea el usuario `admin` (superadmin) con `ADMIN_PASSWORD_HASH` del `.env` si no existe. `ADMIN_PASSWORD_HASH` solo se usa para ese bootstrap.
+    - **Sesiones en BD** (`AdminSession`, ligadas a usuario, cascade): token aleatorio 256-bit, solo se guarda su SHA-256; TTL 12 h; revocación individual, por usuario o total. Cookie `nls_admin_session` httpOnly + SameSite=strict + path=/admin + secure en prod. Un usuario desactivado pierde sesiones y login al instante.
+    - **Rate-limiting persistido** (`AdminLoginAttempt`): 5 fallos/IP o 20 globales en 15 min → bloqueo (aunque luego aciertes). Anti-enumeración de usuarios (verificación dummy en tiempo ~constante). Auditoría con IP; poda > 30 días.
+    - **`proxy.ts`** (middleware de Next 16) sobre `/admin/:path*`: redirect temprano sin cookie + cabeceras X-Frame-Options DENY, nosniff, no-referrer, no-store, X-Robots-Tag.
+    - Flujo completo verificado E2E (12 casos: alta 2FA, gating de sesión pendiente, anti-replay, creación de usuario, desactivación…).
+  - Secciones: **Resumen**, **Pedidos**, **Solicitudes**, **Productos**, **Precios**, **Seguridad** (sesiones propias; todas si superadmin + botón pánico), **Usuarios** (solo superadmin).
   - Server actions en `app/admin/actions.ts`; tras cada cambio hacen `revalidatePath` de la página pública afectada → los cambios del admin se publican al instante.
 - **Modo B (diseño a medida) ✅**:
   - `/diseno-a-medida`: formulario real → subida de imagen + selector de tamaño + notas + contacto → crea `CustomRequest` (gestionable en `/admin/solicitudes`). Estados ok/error vía query params.
@@ -295,6 +304,25 @@ npx prisma migrate dev
 - **Pulido visual del catálogo ✅**: `components/shop/neon-stage.tsx` — "escenario" de producto (pared de ladrillo CSS + resplandor ambiental del color del neón + viñeta + brillo extra al hover). Lo usan `ProductCard` y `ProductDetail` para que las previews parezcan fotos de producto y no se fundan con el fondo de la página. Regla de diseño: las previews de producto SIEMPRE sobre `NeonStage`, nunca sobre el fondo plano.
 - **Carrito centralizado + animaciones ✅**: lógica única en `lib/cart.ts` (`readCart/addToCart/removeFromCart`, eventos `cart-updated` y `cart-added`). Animaciones con Framer Motion: badge del header hace "pop" (spring, re-mount por `key={count}`) y toast global `CartToastHost` (montado en el layout raíz; check SVG que se dibuja, autodescarte 3.8s, enlace a /carrito).
 - **Pendiente inmediato**: checkout que cree `Order` en BD validando precio en servidor; emails (Resend) al recibir solicitud/pedido; imágenes reales de producto; alta/edición completa de productos desde admin (hoy solo precio/visibilidad).
+
+## 10.c Despliegue (servidor Ubuntu)
+
+Producción en el servidor propio, en **`neonledspain.llucbosch.com`**.
+
+| Dato | Valor |
+|------|-------|
+| Servidor | Ubuntu 24.04 · `192.168.1.200` (LAN) · `85.59.119.150` (pública, **sin IPv6**) |
+| SSH | puerto **22000**, usuario `lluc` |
+| Ruta de la app | `~/apps/neonweb` (clon de `github.com/lluc898/neonweb`) |
+| Contenedor | `neonweb`, imagen `neonweb:latest`, `restart: always` |
+| Puerto | `127.0.0.1:3000` (solo loopback) |
+| Reverse proxy | **Nginx Proxy Manager** en Docker (`~/nginx-proxy-manager`), termina TLS |
+
+- **Docker, no `next start` a pelo**: el servidor ya usa NPM + contenedores, así que la app va en Docker (`Dockerfile` multi-stage aprovechando `output: "standalone"` + `docker-compose.yml`). Estos ficheros están en la raíz del repo.
+- **NPM proxea por nombre de contenedor**: `http://neonweb:3000`. El contenedor se une a la red externa **`nginx-proxy-manager_default`** (la que usa NPM de verdad; ojo, existe otra red `npm-network` huérfana que NPM **no** usa).
+  - ⚠️ **No proxear por IP del host**: el firewall bloquea `192.168.1.200:3000` desde los contenedores. Solo funcionan los puertos abiertos explícitamente (p. ej. 18789, 20081).
+- **Build con `.env`**: Next inlinea las `NEXT_PUBLIC_*` en tiempo de compilación, por eso el `.dockerignore` **deja pasar `.env`** a la etapa `builder`. No llega a la imagen final; el runtime lo recibe vía `env_file` de compose. El `.env` vive solo en el servidor (`chmod 600`), nunca en git.
+- **Despliegue de cambios**: `cd ~/apps/neonweb && git pull && docker compose up -d --build`.
 
 ## 11. Notas y referencias
 

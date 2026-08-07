@@ -76,6 +76,24 @@ async function main() {
     });
   }
   console.log(`✓ reglas de precio (tamaños, soportes, usos)`);
+
+  // --- Superadmin del panel (usuario "admin") ---
+  // Contraseña inicial: el hash de ADMIN_PASSWORD_HASH (.env). Solo se crea si
+  // no existe; nunca sobreescribe una contraseña ya cambiada.
+  const adminHash = process.env.ADMIN_PASSWORD_HASH;
+  if (adminHash) {
+    const existing = await prisma.adminUser.findUnique({ where: { username: "admin" } });
+    if (!existing) {
+      await prisma.adminUser.create({
+        data: { username: "admin", passwordHash: adminHash, isSuperadmin: true },
+      });
+      console.log(`✓ usuario superadmin "admin" creado`);
+    } else {
+      console.log(`✓ usuario "admin" ya existe`);
+    }
+  } else {
+    console.warn("⚠ ADMIN_PASSWORD_HASH no definido: no se crea el usuario admin");
+  }
 }
 
 main()

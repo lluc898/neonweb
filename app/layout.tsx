@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Poppins, Pacifico } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/shop/site-header";
-import { SiteFooter } from "@/components/shop/site-footer";
-import { CartToastHost } from "@/components/shop/cart-toast";
 
 // Cuerpo / UI
 const geistSans = Geist({
@@ -40,12 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="es"
       className={`${geistSans.variable} ${poppins.variable} ${pacifico.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-bg text-text">
-        <SiteHeader />
-        {children}
-        <SiteFooter />
-        <CartToastHost />
-      </body>
+      <body className="min-h-full flex flex-col bg-bg text-text">{children}</body>
     </html>
   );
 }

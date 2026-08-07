@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { cn } from "@/lib/utils";
-import { createCustomRequestAction } from "@/app/diseno-a-medida/actions";
+import { createCustomRequestAction } from "@/app/(shop)/diseno-a-medida/actions";
 
 /** Tamaños orientativos para que el cliente indique lo grande que lo quiere. */
 const SIZES = [

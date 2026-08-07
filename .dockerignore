@@ -1,0 +1,16 @@
+# Lo que nunca debe entrar en el contexto de build.
+# OJO: .env SÍ entra a propósito — Next necesita las NEXT_PUBLIC_* al compilar
+# (solo en la etapa `builder`; la imagen final recibe el entorno vía compose).
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+.DS_Store
+_assets
+.claude
+.agents
+.windsurf
+README.md
+CLAUDE.md
+lib/generated

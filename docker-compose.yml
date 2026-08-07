@@ -1,0 +1,52 @@
+# ------------------------------------------------------------------
+# Neon Led Spain — despliegue en el servidor Ubuntu.
+# Nginx Proxy Manager (ya existente) hace de reverse proxy y termina TLS
+# para neonledspain.llucbosch.com apuntando a 192.168.1.200:3000.
+# ------------------------------------------------------------------
+
+services:
+  neonweb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: neonweb:latest
+    container_name: neonweb
+    restart: always
+
+    # Secretos y configuración en tiempo de ejecución (DATABASE_URL, Supabase,
+    # ADMIN_PASSWORD_HASH). El fichero .env vive solo en el servidor, fuera de git.
+    env_file:
+      - .env
+
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+
+    # Solo loopback: la app se publica hacia fuera exclusivamente a través de
+    # Nginx Proxy Manager. Este puerto queda para depurar desde el propio host.
+    ports:
+      - "127.0.0.1:3000:3000"
+
+    # Misma red que Nginx Proxy Manager: así NPM resuelve `neonweb` por DNS de
+    # Docker y proxea a `neonweb:3000` (mismo patrón que `openproject`).
+    networks:
+      - npm
+
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  npm:
+    name: nginx-proxy-manager_default
+    external: true
