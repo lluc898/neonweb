@@ -1,16 +1,25 @@
+import Image from "next/image";
 import Link from "next/link";
+import { TrustpilotRating } from "@/components/shop/trustpilot-rating";
 
 export function SiteFooter() {
   return (
     <footer className="mt-auto border-t border-border">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 sm:grid-cols-3">
+        {/* El emblema vive aquí: en la cabecera se usa el wordmark tipográfico
+            para no mostrar dos logotipos distintos en la misma pantalla. */}
         <div>
-          <p className="font-[family-name:var(--font-display)] text-lg font-bold">
-            NEON LED <span className="neon-magenta">SPAIN</span>
-          </p>
-          <p className="mt-2 text-sm text-muted">
+          <Image
+            src="/logo.webp"
+            alt="Neon Led Spain"
+            width={200}
+            height={192}
+            className="h-auto w-24 drop-shadow-[0_0_18px_rgba(41,171,226,0.35)]"
+          />
+          <p className="mt-3 text-sm text-muted">
             Neones LED decorativos y personalizados, hechos en Mallorca.
           </p>
+          <TrustpilotRating className="mt-4" />
         </div>
 
         <div>
