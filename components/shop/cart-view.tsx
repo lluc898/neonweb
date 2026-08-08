@@ -19,8 +19,9 @@ import {
   NEON_COLORS,
   type NeonConfig,
 } from "@/lib/neon-options";
-import { PRODUCT_SIZES } from "@/lib/products";
+import { PRODUCT_SIZES, type ProductArtworkData } from "@/lib/products";
 import { NeonStage } from "@/components/shop/neon-stage";
+import { ProductArtwork } from "@/components/shop/product-artwork";
 import {
   getCartServerSnapshot,
   getCartSnapshot,
@@ -218,9 +219,12 @@ function CustomItemCard({
 /** Ficha de un producto de catálogo. */
 function ProductItemCard({
   item,
+  artwork,
   onRemove,
 }: {
   item: Extract<CartItem, { type: "product" }>;
+  /** Diseño real del catálogo; ausente si el producto ya no existe. */
+  artwork?: ProductArtworkData;
   onRemove: () => void;
 }) {
   // Carritos guardados antes de la v2 solo traen el hex: se traduce a color.
@@ -236,16 +240,15 @@ function ProductItemCard({
   return (
     <li className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex flex-col gap-4 p-4 sm:flex-row">
-        <NeonStage color={hex} className="h-28 w-full shrink-0 rounded-lg sm:w-40">
-          <span
-            className={cn(
-              "block max-w-[140px] truncate text-center font-[family-name:var(--font-script)] text-xl",
-              color?.rgb && "animate-rgb"
-            )}
-            style={{ color: hex, textShadow: neonTextGlow(hex, 0.85) }}
-          >
-            {item.name}
-          </span>
+        {/* Mismo renderizador que la ficha: el logo se ve igual aquí. */}
+        <NeonStage color={hex} className="h-28 w-full shrink-0 rounded-lg p-3 sm:w-40">
+          <ProductArtwork
+            product={artwork ?? { name: item.name, color: hex }}
+            color={hex}
+            sizeRem={artwork?.symbol ? 2.4 : 1.15}
+            rgb={color?.rgb}
+            className="max-w-full"
+          />
         </NeonStage>
 
         <div className="min-w-0 flex-1">
@@ -291,7 +294,12 @@ function ProductItemCard({
   );
 }
 
-export function CartView() {
+export function CartView({
+  artworks = {},
+}: {
+  /** Diseños del catálogo por slug, del servidor (ver getProductArtworks). */
+  artworks?: Record<string, ProductArtworkData>;
+}) {
   // El carrito vive en localStorage: almacén externo a React.
   const items = useSyncExternalStore(subscribeCart, getCartSnapshot, getCartServerSnapshot);
 
@@ -335,7 +343,12 @@ export function CartView() {
               onRemove={() => removeFromCart(i)}
             />
           ) : (
-            <ProductItemCard key={`${it.addedAt}-${i}`} item={it} onRemove={() => removeFromCart(i)} />
+            <ProductItemCard
+              key={`${it.addedAt}-${i}`}
+              item={it}
+              artwork={artworks[it.slug]}
+              onRemove={() => removeFromCart(i)}
+            />
           )
         )}
       </ul>

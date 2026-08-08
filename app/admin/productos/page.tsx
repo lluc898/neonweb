@@ -84,13 +84,8 @@ export default async function AdminProductosPage({
                     <NeonStage color={p.color} className="h-12 w-16 shrink-0 rounded-md">
                       <ProductArtwork
                         product={{
-                          id: p.id,
-                          slug: p.slug,
                           name: p.name,
-                          category: p.categoryId,
-                          price: p.priceCents / 100,
                           color: p.color,
-                          description: p.description,
                           design: p.design === "SVG" ? "SVG" : "TEXT",
                           designText: p.designText ?? undefined,
                           fontId: p.fontId ?? undefined,

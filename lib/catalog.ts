@@ -9,6 +9,7 @@ import {
   PRODUCTS as SEED_PRODUCTS,
   CATEGORIES as SEED_CATEGORIES,
   type Product,
+  type ProductArtworkData,
   type ProductCategory,
 } from "@/lib/products";
 import {
@@ -73,6 +74,35 @@ export async function getProducts(): Promise<Product[]> {
   } catch {
     return SEED_PRODUCTS;
   }
+}
+
+/**
+ * Diseños del catálogo indexados por slug, para que el carrito pueda pintar
+ * cada línea con su neón real (en `localStorage` solo se guarda nombre y
+ * color, y así el dibujo tampoco se queda anticuado si el admin lo cambia).
+ *
+ * Se manda el catálogo entero porque el servidor no sabe qué hay en el
+ * carrito. Con este tamaño de catálogo son unos pocos KB; si algún día hay
+ * cientos de productos vectoriales, esto debería pasar a un endpoint que
+ * reciba los slugs.
+ */
+export async function getProductArtworks(): Promise<Record<string, ProductArtworkData>> {
+  const products = await getProducts();
+  return Object.fromEntries(
+    products.map((p) => [
+      p.slug,
+      {
+        name: p.name,
+        color: p.color,
+        symbol: p.symbol,
+        design: p.design,
+        designText: p.designText,
+        fontId: p.fontId,
+        svgMarkup: p.svgMarkup,
+        svgStroke: p.svgStroke,
+      },
+    ])
+  );
 }
 
 export async function getProductBySlug(slug: string): Promise<Product | undefined> {

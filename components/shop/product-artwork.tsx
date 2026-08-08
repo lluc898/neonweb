@@ -1,6 +1,6 @@
 import { cn, neonTextGlow } from "@/lib/utils";
 import { findFont } from "@/lib/neon-options";
-import type { Product } from "@/lib/products";
+import type { ProductArtworkData } from "@/lib/products";
 
 /**
  * Dibuja el neón de un producto de catálogo. Único sitio donde se decide cómo
@@ -13,7 +13,8 @@ import type { Product } from "@/lib/products";
  */
 
 type Props = {
-  product: Product;
+  /** `Product` completo o el subconjunto de dibujo (carrito). */
+  product: ProductArtworkData;
   /** Color del tubo. Por defecto el del diseño; la ficha lo cambia en vivo. */
   color?: string;
   /** Tamaño del texto/emoji en rem. El SVG siempre ocupa la caja. */

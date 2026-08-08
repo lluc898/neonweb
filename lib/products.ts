@@ -21,6 +21,22 @@ export const CATEGORIES: ProductCategory[] = [
 /** Cómo se dibuja el neón del producto (espejo del enum `ProductDesign`). */
 export type ProductDesignKind = "TEXT" | "SVG";
 
+/**
+ * Lo mínimo para dibujar el neón de un producto, sin arrastrar el resto de la
+ * ficha. El carrito recibe un mapa de estos para pintar cada línea con su
+ * diseño real (en `localStorage` solo hay nombre y color).
+ */
+export type ProductArtworkData = {
+  name: string;
+  color: string;
+  symbol?: string;
+  design?: ProductDesignKind;
+  designText?: string;
+  fontId?: string;
+  svgMarkup?: string;
+  svgStroke?: number;
+};
+
 export type Product = {
   id: string;
   slug: string;
