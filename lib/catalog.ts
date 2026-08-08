@@ -24,6 +24,23 @@ import {
 } from "@/lib/neon-options";
 import type { PricingOptions } from "@/lib/pricing";
 
+/** Campos de diseño de una fila de Product, normalizados al tipo de la UI. */
+function designOf(p: {
+  design: string;
+  designText: string | null;
+  fontId: string | null;
+  svgMarkup: string | null;
+  svgStroke: number | null;
+}) {
+  return {
+    design: p.design === "SVG" ? ("SVG" as const) : ("TEXT" as const),
+    designText: p.designText ?? undefined,
+    fontId: p.fontId ?? undefined,
+    svgMarkup: p.svgMarkup ?? undefined,
+    svgStroke: p.svgStroke ?? undefined,
+  };
+}
+
 export async function getCategories(): Promise<ProductCategory[]> {
   try {
     const rows = await prisma.category.findMany({ orderBy: { position: "asc" } });
@@ -51,6 +68,7 @@ export async function getProducts(): Promise<Product[]> {
       color: p.color,
       symbol: p.symbol ?? undefined,
       description: p.description,
+      ...designOf(p),
     }));
   } catch {
     return SEED_PRODUCTS;
@@ -73,6 +91,7 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
       color: p.color,
       symbol: p.symbol ?? undefined,
       description: p.description,
+      ...designOf(p),
     };
   } catch {
     return SEED_PRODUCTS.find((sp) => sp.slug === slug);

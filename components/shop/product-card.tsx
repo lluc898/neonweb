@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { neonTextGlow } from "@/lib/utils";
 import { formatEUR } from "@/lib/pricing";
 import { getCategoryLabel, type Product } from "@/lib/products";
 import { NeonStage } from "@/components/shop/neon-stage";
+import { ProductArtwork } from "@/components/shop/product-artwork";
 
 export function ProductCard({ product }: { product: Product }) {
   return (
@@ -12,21 +12,11 @@ export function ProductCard({ product }: { product: Product }) {
     >
       {/* Preview: el neón "colgado" en una pared real */}
       <NeonStage color={product.color} className="h-44 p-5">
-        {product.symbol ? (
-          <span
-            className="text-6xl transition-transform duration-300 group-hover:scale-110"
-            style={{ filter: `drop-shadow(0 0 14px ${product.color})` }}
-          >
-            {product.symbol}
-          </span>
-        ) : (
-          <span
-            className="text-center font-[family-name:var(--font-script)] text-3xl leading-none transition-transform duration-300 group-hover:scale-105"
-            style={{ color: product.color, textShadow: neonTextGlow(product.color) }}
-          >
-            {product.name}
-          </span>
-        )}
+        <ProductArtwork
+          product={product}
+          sizeRem={product.symbol ? 3.75 : 1.9}
+          className="transition-transform duration-300 group-hover:scale-105"
+        />
       </NeonStage>
 
       {/* Info */}

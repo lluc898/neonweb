@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cn, neonTextGlow } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { ProductArtwork } from "@/components/shop/product-artwork";
 import {
   DEFAULT_PRICING,
   DEFAULT_PRODUCT_OPTIONS,
@@ -88,24 +89,13 @@ export function ProductDetail({
           color={color.hex}
           className="group min-h-[320px] rounded-2xl border border-border p-8"
         >
-          {product.symbol ? (
-            <span
-              className={cn("text-8xl", color.rgb && "animate-rgb")}
-              style={{ filter: `drop-shadow(0 0 22px ${color.hex})` }}
-            >
-              {product.symbol}
-            </span>
-          ) : (
-            <span
-              className={cn(
-                "animate-flicker text-center font-[family-name:var(--font-script)] text-5xl leading-tight",
-                color.rgb && "animate-rgb"
-              )}
-              style={{ color: color.hex, textShadow: neonTextGlow(color.hex) }}
-            >
-              {product.name}
-            </span>
-          )}
+          <ProductArtwork
+            product={product}
+            color={color.hex}
+            sizeRem={product.symbol ? 5 : 3}
+            flicker
+            rgb={color.rgb}
+          />
         </NeonStage>
       </div>
 

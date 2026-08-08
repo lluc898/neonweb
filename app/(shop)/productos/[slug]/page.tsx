@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductDetail } from "@/components/shop/product-detail";
 import { getConfiguratorOptions, getProductBySlug } from "@/lib/catalog";
+import { configuratorFontVars } from "@/lib/neon-fonts";
 
 // Fichas desde la BD, cacheadas y regeneradas bajo demanda (ISR).
 export const revalidate = 300;
@@ -36,7 +37,7 @@ export default async function ProductPage({
   if (!product) notFound();
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+    <main className={`${configuratorFontVars} mx-auto w-full max-w-6xl flex-1 px-6 py-10`}>
       <Link href="/productos" className="text-sm text-muted transition-colors hover:text-text">
         ← Volver al catálogo
       </Link>

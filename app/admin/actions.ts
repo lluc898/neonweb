@@ -14,6 +14,9 @@ import {
 } from "@/lib/admin-auth";
 import { hashPassword } from "@/lib/password";
 import { TRUSTPILOT_SETTING_KEY, parseTrustpilot } from "@/lib/trustpilot";
+import { NEON_FONTS } from "@/lib/neon-options";
+import { neonSvgMarkup, sanitizeSvg, suggestedStroke } from "@/lib/svg-neon";
+import { deleteProductSource, uploadProductSource } from "@/lib/product-files";
 import type { OrderStatus, RequestStatus } from "@/lib/generated/prisma/enums";
 
 // ------------------------------------------------------------------ Sesión
@@ -137,6 +140,120 @@ export async function updateProductAction(formData: FormData) {
 
   revalidatePath("/productos");
   revalidatePath("/admin/productos");
+}
+
+// ------------------------------------------------- Alta y baja de productos
+
+/** slug legible a partir del nombre: "Better Together" → "better-together". */
+function slugify(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "") // fuera acentos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+/** Añade -2, -3… hasta encontrar un slug libre. */
+async function uniqueSlug(base: string): Promise<string> {
+  const root = base || "producto";
+  for (let n = 1; n < 50; n++) {
+    const slug = n === 1 ? root : `${root}-${n}`;
+    if (!(await prisma.product.findUnique({ where: { slug } }))) return slug;
+  }
+  return `${root}-${Date.now()}`;
+}
+
+const NUEVO = "/admin/productos/nuevo";
+
+export async function createProductAction(formData: FormData) {
+  await requireAdmin();
+
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim().slice(0, 500);
+  const categoryId = String(formData.get("categoryId") ?? "");
+  const priceEuros = Number(formData.get("price"));
+  const color = String(formData.get("color") ?? "").trim();
+  const design = String(formData.get("design") ?? "TEXT") === "SVG" ? "SVG" : "TEXT";
+  const active = formData.get("active") === "on";
+
+  if (name.length < 2) redirect(`${NUEVO}?error=nombre`);
+  if (!/^#[0-9a-fA-F]{6}$/.test(color)) redirect(`${NUEVO}?error=color`);
+  if (!Number.isFinite(priceEuros) || priceEuros <= 0) redirect(`${NUEVO}?error=precio`);
+  if (!(await prisma.category.findUnique({ where: { id: categoryId } }))) {
+    redirect(`${NUEVO}?error=categoria`);
+  }
+
+  const data: Parameters<typeof prisma.product.create>[0]["data"] = {
+    slug: await uniqueSlug(slugify(name)),
+    name,
+    description,
+    categoryId,
+    priceCents: Math.round(priceEuros * 100),
+    color,
+    active,
+    design,
+  };
+
+  if (design === "SVG") {
+    // El SVG se sanea AQUÍ aunque el navegador ya lo hiciera para la vista
+    // previa: lo que llega por formulario nunca es de fiar y este markup
+    // acaba inyectado en la tienda.
+    const result = sanitizeSvg(String(formData.get("svg") ?? ""));
+    if (!result.ok) redirect(`${NUEVO}?error=svg-${result.error}`);
+
+    const stroke = Number(formData.get("svgStroke"));
+    data.svgMarkup = neonSvgMarkup(result.svg);
+    data.svgStroke =
+      Number.isFinite(stroke) && stroke > 0 ? stroke : suggestedStroke(result.svg.viewBox);
+
+    // El archivo original (SVG o EPS) se guarda aparte: es el que va a taller.
+    const file = formData.get("sourceFile");
+    if (file instanceof File && file.size > 0) {
+      data.sourceFileUrl = await uploadProductSource(file);
+    }
+  } else {
+    const designText = String(formData.get("designText") ?? "").trim().slice(0, 60);
+    const fontId = String(formData.get("fontId") ?? "");
+    const symbol = String(formData.get("symbol") ?? "").trim().slice(0, 8);
+
+    data.designText = designText || null;
+    data.fontId = NEON_FONTS.some((f) => f.id === fontId) ? fontId : NEON_FONTS[0].id;
+    data.symbol = symbol || null;
+  }
+
+  const product = await prisma.product.create({ data });
+
+  revalidatePath("/productos");
+  revalidatePath("/");
+  revalidatePath("/admin/productos");
+  redirect(`/admin/productos?ok=creado&slug=${product.slug}`);
+}
+
+/**
+ * Borra un producto. Si aparece en algún pedido NO se borra: se perdería la
+ * trazabilidad de lo vendido (la relación es opcional, así que Prisma pondría
+ * el productId a null en silencio). En ese caso se ofrece ocultarlo.
+ */
+export async function deleteProductAction(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id"));
+  if (!id) return;
+
+  const orderLines = await prisma.orderItem.count({ where: { productId: id } });
+  if (orderLines > 0) redirect(`/admin/productos?error=en-pedidos&n=${orderLines}`);
+
+  const product = await prisma.product.findUnique({ where: { id } });
+  if (!product) redirect("/admin/productos?error=no-existe");
+
+  await prisma.product.delete({ where: { id } });
+  await deleteProductSource(product.sourceFileUrl);
+
+  revalidatePath("/productos");
+  revalidatePath("/");
+  revalidatePath("/admin/productos");
+  redirect("/admin/productos?ok=borrado");
 }
 
 // ------------------------------------------------------- Reglas de precio

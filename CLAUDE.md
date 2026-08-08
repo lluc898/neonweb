@@ -215,6 +215,8 @@ Punto de partida; se refina al implementar.
 - **CustomRequest** (diseño a medida: imagenUrl, tamañoDeseado, notas, estado, presupuesto)
 - **SiteSetting** (clave → JSON: ajustes de tienda editables desde el admin; hoy `trustpilot`)
 
+> `Product` lleva además el **diseño** del neón: `design` (`TEXT`|`SVG`), `designText`, `fontId`, `svgMarkup` (SVG saneado, en la BD), `svgStroke` y `sourceFileUrl` (archivo de taller en Storage).
+
 ---
 
 ## 9. Convenciones de desarrollo
@@ -313,6 +315,14 @@ npx prisma migrate dev
     - **`proxy.ts`** (middleware de Next 16) sobre `/admin/:path*`: redirect temprano sin cookie + cabeceras X-Frame-Options DENY, nosniff, no-referrer, no-store, X-Robots-Tag.
     - Flujo completo verificado E2E (12 casos: alta 2FA, gating de sesión pendiente, anti-replay, creación de usuario, desactivación…).
   - Secciones: **Resumen**, **Pedidos**, **Solicitudes**, **Productos**, **Precios**, **Opiniones** (Trustpilot), **Seguridad** (sesiones propias; todas si superadmin + botón pánico), **Usuarios** (solo superadmin).
+  - **Alta y baja de productos ✅**:
+    - **`/admin/productos/nuevo`** (`components/admin/new-product-form.tsx`) con dos modos: **editor de texto** (texto + una de las 18 tipografías + emoji opcional) y **vectorial** (arrastrar un SVG). Vista previa en vivo que usa **el mismo `ProductArtwork` que la tienda**, así que lo que se ve es lo que se publica.
+    - **`components/shop/product-artwork.tsx`**: único sitio donde se decide cómo se dibuja un producto (SVG / emoji / texto). Lo usan `ProductCard`, `ProductDetail` y el admin. `/productos` y `/productos/[slug]` ya cargan `configuratorFontVars` porque un producto puede llevar tipografía del configurador.
+    - **`lib/svg-neon.ts`** — saneado por **lista blanca** (se reconstruye el documento emitiendo solo etiquetas/atributos de geometría permitidos, y se descarta el texto entre etiquetas). ⚠️ Es imprescindible: el SVG se inyecta con `dangerouslySetInnerHTML` porque el glow necesita que el CSS alcance a los trazos. Verificado contra `<script>`, `onload`/`onclick`, `<foreignObject>`, `<use href="http…">` y comillas dentro de `d`. El servidor **siempre** vuelve a sanear en `createProductAction`, aunque el navegador ya lo hiciera para la preview.
+    - El neón se consigue con `fill:none; stroke:currentColor; stroke-width` **heredados** desde el contenedor (por eso el markup guardado no lleva color): el mismo diseño sirve para cualquier color. El glow son capas de `drop-shadow` (`text-shadow` no afecta a un trazo). Grosor ajustable con un deslizador y sugerido en 1,8 % del lado mayor del viewBox.
+    - **Borrado en dos pasos** (`DeleteProductButton`, sin `window.confirm`). ⚠️ **Guarda**: si el producto aparece en algún pedido NO se borra. `OrderItem.product` es una relación opcional, así que Prisma pondría `productId = null` en silencio y se perdería la trazabilidad de lo vendido — verificado. En ese caso el admin propone desmarcar *visible*.
+    - **Dónde vive cada cosa (importante para el consumo de Supabase)**: el **dibujo de la tienda** va en la BD como SVG saneado (`Product.svgMarkup`, unos pocos KB, tope 200 KB) porque tiene que ir en línea; el **archivo de producción** (EPS/AI/SVG original, hasta 12 MB) va a Storage, bucket **`productos`** (`lib/product-files.ts`), y se borra junto con el producto.
+    - ⚠️ **EPS no se puede previsualizar en web**: ni el navegador lo dibuja ni hay conversor en la imagen Docker (haría falta Ghostscript + MuPDF, con mucha fragilidad por CMYK, tipografías y recortes). Se acepta y se guarda como archivo de taller, pero para que el neón se vea en la tienda hace falta un **SVG**. El formulario lo dice al soltar un EPS.
   - Server actions en `app/admin/actions.ts`; tras cada cambio hacen `revalidatePath` de la página pública afectada → los cambios del admin se publican al instante.
 - **Modo B (diseño a medida) ✅**:
   - `/diseno-a-medida`: formulario real → subida de imagen + selector de tamaño + notas + contacto → crea `CustomRequest` (gestionable en `/admin/solicitudes`). Estados ok/error vía query params.

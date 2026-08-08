@@ -43,6 +43,14 @@ enum CustomerType {
   COMPANY
 }
 
+/// Cómo se dibuja el neón de un producto de catálogo.
+enum ProductDesign {
+  /// Con una tipografía del configurador (NEON_FONTS).
+  TEXT
+  /// Con un trazo vectorial subido por el admin.
+  SVG
+}
+
 // --------------------------------------------------------------- Usuarios
 
 /// Perfil ligado a Supabase Auth. `id` = uuid de auth.users.
@@ -81,6 +89,22 @@ model Product {
   /// URLs de imágenes (Supabase Storage). Vacío = se renderiza en neón.
   images      String[]    @default([])
   active      Boolean     @default(true)
+
+  // --- Diseño del neón (lo que se ve en la tarjeta y en la ficha) ---
+  design ProductDesign @default(TEXT)
+  /// Texto a dibujar cuando difiere del nombre comercial.
+  designText String?
+  /// Tipografía del configurador (NEON_FONTS). Null = la de marca por defecto.
+  fontId     String?
+  /// SVG ya saneado, listo para inyectar inline. Solo con design = SVG.
+  /// Se guarda en la BD (unos pocos KB) y NO en Storage: el efecto neón
+  /// necesita que el CSS alcance a los trazos, y eso exige SVG en línea.
+  svgMarkup  String?
+  /// Grosor del trazo del neón, en unidades del viewBox del SVG.
+  svgStroke  Float?
+  /// Archivo original tal cual lo subió el admin (EPS/SVG), en Storage.
+  /// Es el que se manda a fabricar; el EPS no se puede previsualizar en web.
+  sourceFileUrl String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   orderItems  OrderItem[]

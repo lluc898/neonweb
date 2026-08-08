@@ -18,6 +18,9 @@ export const CATEGORIES: ProductCategory[] = [
   { id: "negocios", label: "Negocios" },
 ];
 
+/** Cómo se dibuja el neón del producto (espejo del enum `ProductDesign`). */
+export type ProductDesignKind = "TEXT" | "SVG";
+
 export type Product = {
   id: string;
   slug: string;
@@ -30,6 +33,17 @@ export type Product = {
   /** Emoji para diseños de icono/dibujo; si existe, la tarjeta lo muestra. */
   symbol?: string;
   description: string;
+
+  // --- Diseño (lo rellena el alta desde el admin; los semilla usan TEXT) ---
+  design?: ProductDesignKind;
+  /** Texto a dibujar si difiere del nombre comercial. */
+  designText?: string;
+  /** Tipografía del configurador; sin ella se usa la de marca. */
+  fontId?: string;
+  /** SVG saneado listo para inyectar (solo con design = "SVG"). */
+  svgMarkup?: string;
+  /** Grosor del trazo, en unidades del viewBox. */
+  svgStroke?: number;
 };
 
 export const PRODUCTS: Product[] = [

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ProductCatalog } from "@/components/shop/product-catalog";
 import { getCategories, getProducts } from "@/lib/catalog";
+import { configuratorFontVars } from "@/lib/neon-fonts";
 
 export const metadata: Metadata = {
   title: "Catálogo de neones LED",
@@ -15,7 +16,9 @@ export const revalidate = 300;
 export default async function ProductosPage() {
   const [products, categories] = await Promise.all([getProducts(), getCategories()]);
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-10">
+    // Las fuentes del configurador: un producto puede estar diseñado con una.
+    // Van con `preload: false`, así que solo se descargan si se usan.
+    <main className={`${configuratorFontVars} mx-auto w-full max-w-6xl flex-1 px-6 py-10`}>
       <header className="mb-8">
         <h1 className="font-[family-name:var(--font-display)] text-3xl font-extrabold sm:text-4xl">
           Catálogo
