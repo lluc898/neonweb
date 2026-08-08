@@ -11,6 +11,7 @@ import {
   neonSvgMarkup,
   sanitizeSvg,
   suggestedStroke,
+  viewBoxOf,
 } from "@/lib/svg-neon";
 import { NeonStage } from "@/components/shop/neon-stage";
 import { ProductArtwork } from "@/components/shop/product-artwork";
@@ -25,6 +26,44 @@ import { ProductArtwork } from "@/components/shop/product-artwork";
  * Todo lo que se ve aquí es una previsualización: el saneado del SVG y el
  * precio los vuelve a hacer el servidor en `createProductAction`.
  */
+
+/** Margen alrededor del dibujo, como fracción de su lado mayor. */
+const INK_PADDING = 0.08;
+
+/**
+ * Reencuadra el SVG a la **tinta real** del dibujo.
+ *
+ * Los archivos de logo suelen venir con un lienzo mucho mayor que el trazo, o
+ * con el dibujo descentrado. Si se respeta ese viewBox, el neón sale pequeño y
+ * desplazado. Aquí se mide el bounding box real con `getBBox()` (hace falta el
+ * DOM, por eso vive en el cliente) y se reescribe el viewBox ajustado, con un
+ * margen para que el grosor del tubo no se corte en los bordes.
+ */
+function fitViewBoxToInk(markup: string, host: HTMLElement): string {
+  host.innerHTML = markup;
+  const svg = host.firstElementChild as SVGSVGElement | null;
+  if (!svg) return markup;
+
+  let box: DOMRect;
+  try {
+    box = svg.getBBox();
+  } catch {
+    return markup; // navegador sin layout para el SVG: se deja como estaba
+  }
+  if (!(box.width > 0) || !(box.height > 0)) return markup;
+
+  const pad = Math.max(box.width, box.height) * INK_PADDING;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const viewBox = [
+    round(box.x - pad),
+    round(box.y - pad),
+    round(box.width + pad * 2),
+    round(box.height + pad * 2),
+  ].join(" ");
+
+  host.innerHTML = "";
+  return markup.replace(/viewBox="[^"]*"/, `viewBox="${viewBox}"`);
+}
 
 const inputCls =
   "w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text outline-none focus:border-neon-cyan";
@@ -54,10 +93,17 @@ export function NewProductForm({
   // --- Modo vectorial ---
   const [svgMarkup, setSvgMarkup] = useState("");
   const [svgStroke, setSvgStroke] = useState(2);
+  /**
+   * Tope del deslizador, fijado al cargar el archivo. Si se derivara del valor
+   * actual, la escala cambiaría mientras arrastras y el control se atasca.
+   */
+  const [strokeMax, setStrokeMax] = useState(12);
   const [svgError, setSvgError] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const [dragging, setDragging] = useState(false);
   const sourceRef = useRef<HTMLInputElement>(null);
+  /** Contenedor oculto donde se mide el SVG para reencuadrarlo. */
+  const measureRef = useRef<HTMLDivElement>(null);
 
   /** Lee el archivo soltado: si es SVG se convierte; si es EPS solo se adjunta. */
   const takeFile = async (file: File | undefined) => {
@@ -83,8 +129,16 @@ export function NewProductForm({
       setSvgError(SVG_ERROR_MESSAGES[result.error]);
       return;
     }
-    setSvgMarkup(neonSvgMarkup(result.svg));
-    setSvgStroke(suggestedStroke(result.svg.viewBox));
+
+    // Reencuadrar antes de calcular el grosor: el trazo se dimensiona sobre el
+    // tamaño real del dibujo, no sobre el lienzo que trajera el archivo.
+    let markup = neonSvgMarkup(result.svg);
+    if (measureRef.current) markup = fitViewBoxToInk(markup, measureRef.current);
+
+    const stroke = suggestedStroke(viewBoxOf(markup) ?? result.svg.viewBox);
+    setSvgMarkup(markup);
+    setSvgStroke(stroke);
+    setStrokeMax(Math.max(stroke * 5, 1));
   };
 
   // Producto ficticio para reutilizar el mismo renderizador que la tienda:
@@ -109,6 +163,17 @@ export function NewProductForm({
 
   return (
     <form action={action} className="grid gap-8 lg:grid-cols-[1fr_360px]">
+      {/*
+        Banco de medida: el SVG se monta aquí para llamar a getBBox() y
+        reencuadrarlo. No puede ir con `display:none` (sin layout no hay
+        bounding box), de ahí el truco de tamaño cero y overflow oculto.
+      */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        className="pointer-events-none absolute -left-[9999px] top-0 h-48 w-48 overflow-hidden opacity-0"
+      />
+
       <input type="hidden" name="design" value={mode} />
       <input type="hidden" name="svg" value={svgMarkup} />
       <input type="hidden" name="color" value={color} />
@@ -274,21 +339,22 @@ export function NewProductForm({
                         id="svgStroke"
                         name="svgStroke"
                         type="range"
-                        min={0.2}
-                        max={svgStroke * 6 || 12}
-                        step={0.1}
+                        min={strokeMax / 40}
+                        max={strokeMax}
+                        step={strokeMax / 200}
                         value={svgStroke}
                         onChange={(e) => setSvgStroke(Number(e.target.value))}
                         className="flex-1 accent-[#29abe2]"
                       />
                       <span className="w-14 text-right text-xs tabular-nums text-muted">
-                        {svgStroke.toFixed(1)}
+                        {svgStroke < 1 ? svgStroke.toFixed(2) : svgStroke.toFixed(1)}
                       </span>
                     </div>
                   </div>
                   <p className="text-xs text-muted">
-                    Trazos: {Math.round(svgMarkup.length / 1024)} KB de{" "}
-                    {Math.round(MAX_SVG_CHARS / 1024)} KB permitidos.
+                    Dibujo reencuadrado y centrado automáticamente ·{" "}
+                    {svgMarkup.length.toLocaleString("es-ES")} de{" "}
+                    {MAX_SVG_CHARS.toLocaleString("es-ES")} caracteres.
                   </p>
                 </>
               )}

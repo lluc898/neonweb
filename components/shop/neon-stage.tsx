@@ -68,7 +68,16 @@ export function NeonStage({
         aria-hidden
       />
 
-      <div className="relative">{children}</div>
+      {/*
+        `self-stretch` + `flex-1`: el contenido necesita una caja con altura y
+        anchura definidas. Sin esto, un SVG con width/height al 100% no tiene
+        contra qué resolver el porcentaje y se sale del escenario.
+        Se usa `self-stretch` y no `h-full` porque hay escenarios con solo
+        `min-height`, donde un porcentaje de altura no resuelve.
+      */}
+      <div className="relative flex min-h-0 w-full flex-1 items-center justify-center self-stretch">
+        {children}
+      </div>
     </div>
   );
 }
