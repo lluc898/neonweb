@@ -5,7 +5,7 @@
  * mano. NO inventar cifras: copiarlas de la ficha real antes de tocar nada.
  *
  * Fuente: https://es.trustpilot.com/review/neonledspain.com
- * Última revisión: 2026-08-08
+ * Última revisión: 2026-08-08 (cifras confirmadas por el propietario).
  */
 export const TRUSTPILOT = {
   url: "https://es.trustpilot.com/review/neonledspain.com",
