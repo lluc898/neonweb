@@ -298,7 +298,11 @@ export async function updatePricingRuleAction(formData: FormData) {
 
   await prisma.pricingRule.update({ where: { id }, data });
 
+  // La portada también monta el configurador y anuncia el envío gratis, y el
+  // checkout calcula los portes: no basta con refrescar /personalizar.
+  revalidatePath("/");
   revalidatePath("/personalizar");
+  revalidatePath("/checkout");
   revalidatePath("/admin/precios");
 }
 

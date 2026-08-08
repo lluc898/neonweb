@@ -540,6 +540,10 @@ export default async function AdminManualPage() {
                   "€ por metro de tubo, € por m² de acrílico, suplemento del RGB, pedido mínimo y vatios por metro.",
                 ],
                 [
+                  "Envío",
+                  "Lo que cuestan los portes y a partir de qué importe salen gratis. Ese importe es también el que anuncia la portada, así que cambia en los dos sitios a la vez.",
+                ],
+                [
                   "Entrega",
                   "El multiplicador del express. 1,2 significa que la entrega en 24-48 h cuesta un 20 % más.",
                 ],
@@ -557,10 +561,10 @@ export default async function AdminManualPage() {
               números nuevos. Revisa bien antes.
             </Note>
 
-            <Note kind="info" title="El envío no se toca desde aquí (todavía)">
-              El coste de envío (9,90 €) y el mínimo para que salga gratis (200 €) están guardados
-              pero <strong>no tienen pantalla en el panel</strong>. Para cambiarlos hay que pedirlo
-              a quien lleve el desarrollo.
+            <Note kind="info" title="Ojo al cambiar el envío gratis">
+              Ese importe no solo se aplica en el checkout: es el que la portada anuncia como
+              reclamo («Envío gratis desde…»). Al guardarlo se actualiza en los dos sitios, así
+              que no hay que tocar nada más.
             </Note>
           </Section>
 
@@ -692,10 +696,6 @@ export default async function AdminManualPage() {
                 [
                   "Editar productos a fondo",
                   "Del panel solo se cambia precio y visibilidad. Para cambiar el nombre, la descripción o el diseño hay que borrar y volver a crear.",
-                ],
-                [
-                  "Cambiar el coste de envío",
-                  "Está fijado en 9,90 € y gratis desde 200 €.",
                 ],
                 [
                   "Área de cliente",

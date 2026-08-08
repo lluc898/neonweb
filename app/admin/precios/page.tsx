@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/admin-auth";
+import { formatEUR } from "@/lib/pricing";
 import { updatePricingRuleAction } from "../actions";
 
 export const metadata = { title: "Precios" };
@@ -30,6 +31,10 @@ export default async function AdminPreciosPage() {
   });
   const supports = byGroup("SUPPORT").sort((a, b) => a.amountCents - b.amountCents);
   const usages = byGroup("USAGE").sort((a, b) => (a.multiplier ?? 1) - (b.multiplier ?? 1));
+  // Envío: coste y umbral de gratuidad. A diferencia del resto, no afecta al
+  // configurador sino al checkout y al reclamo "envío gratis desde X" de la portada.
+  const shippingCost = rules.find((r) => r.group === "SHIPPING" && r.code === "cost");
+  const shippingFree = rules.find((r) => r.group === "SHIPPING" && r.code === "free_from");
 
   return (
     <main className="space-y-10">
@@ -39,7 +44,8 @@ export default async function AdminPreciosPage() {
         </h1>
         <p className="mt-1 text-sm text-muted">
           Fórmula de fabricación: metros de tubo × €/m + m² de material × €/m² (+RGB,
-          soporte) × uso × entrega. Los cambios se aplican al momento.
+          soporte) × uso × entrega. Aquí se ajustan también los gastos de envío.
+          Los cambios se aplican al momento.
         </p>
       </div>
 
@@ -82,6 +88,49 @@ export default async function AdminPreciosPage() {
             </form>
           )}
         </div>
+      </section>
+
+      {/* Envío */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+          Envío
+        </h2>
+        {shippingCost && shippingFree ? (
+          <>
+            <div className="space-y-2">
+              {[shippingCost, shippingFree].map((r) => (
+                <form
+                  key={r.id}
+                  action={updatePricingRuleAction}
+                  className="flex items-center gap-4 rounded-lg border border-border bg-surface px-4 py-2.5 text-sm"
+                >
+                  <input type="hidden" name="id" value={r.id} />
+                  <span className="flex-1 font-medium text-text">{r.label}</span>
+                  <span className="text-xs text-muted">€</span>
+                  <input
+                    type="number"
+                    name="amount"
+                    min={0}
+                    step={r.code === "cost" ? "0.1" : "10"}
+                    defaultValue={r.amountCents / 100}
+                    className={inputCls}
+                  />
+                  <button className={saveCls}>Guardar</button>
+                </form>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted">
+              A partir de {formatEUR(shippingFree.amountCents / 100)} de compra el envío sale
+              gratis. Este importe también es el que anuncia la portada, así que se actualiza
+              solo en los dos sitios.
+            </p>
+          </>
+        ) : (
+          <p className="rounded-lg border border-neon-yellow/40 bg-neon-yellow/5 px-4 py-3 text-sm text-neon-yellow">
+            No hay reglas de envío en la base de datos. Ejecuta <code>npm run db:seed</code> para
+            crearlas; mientras tanto se cobran 9,90 € y hay envío gratis desde 200 €.
+          </p>
+        )}
       </section>
 
       {/* Entrega */}
