@@ -59,6 +59,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                   Usuarios
                 </Link>
               )}
+              <Link
+                href="/admin/manual"
+                title="Manual de uso"
+                aria-label="Manual de uso"
+                className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-[12px] font-bold text-muted transition-colors hover:border-neon-cyan hover:text-neon-cyan"
+              >
+                ?
+              </Link>
             </nav>
           )}
 
