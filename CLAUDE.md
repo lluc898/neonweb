@@ -251,7 +251,11 @@ npx prisma migrate dev
 
 ## 10.b Estado actual
 
-- **Fase 1 (andamiaje) ✅**: Next.js 16 + Tailwind v4, sistema de diseño neón (`app/globals.css`), componentes `NeonText/NeonButton/NeonLoader`, home.
+- **Fase 1 (andamiaje) ✅**: Next.js 16 + Tailwind v4, sistema de diseño neón (`app/globals.css`), componentes `NeonText/NeonButton/NeonLoader`.
+- **Portada orientada a conversión ✅**: **hero con carrusel de fotografías** (`components/shop/hero-slider.tsx`: 10 imágenes en `public/galeria/neon-N.webp`, fundido cada 5,5 s, pausa al pasar el ratón/foco, respeta `prefers-reduced-motion`, puntos + flechas; velo oscuro para legibilidad del titular) → **el configurador completo renderizado en la propia home** → **slider de catálogo** (`components/shop/product-slider.tsx`: scroll-snap nativo + flechas que se desactivan en los extremos + difuminado lateral) → "Así de fácil" (3 pasos) → categorías → banner de diseño a medida → ventajas y contacto.
+  - ⚠️ Las fuentes del configurador van con **`preload: false`** en `lib/neon-fonts.ts`: con 18 familias, precargarlas hundía la portada. Se descargan solo al usarse (0 preloads en el HTML).
+  - Sin reseñas ni cifras inventadas: solo afirmaciones reales del negocio.
+  - **Imágenes de la galería**: fotografías genéricas de neones aportadas por el propietario, convertidas a WebP 1600×1067 (15,4 MB → 1,2 MB) con `sharp` y recorte inteligente. Se muestran **sin texto que afirme autoría** (alt neutro: "Rótulo de neón iluminado"). ⚠️ Pendiente de confirmar su licencia; sustituir por fotos propias en cuanto haya.
 - **Fase 2 (configurador Modo A) ✅ (v1)**: en `/personalizar`.
   - Opciones (fuentes, colores, tamaños, soportes, uso, fondos): `lib/neon-options.ts`.
   - Motor de precios PURO (cliente + servidor): `lib/pricing.ts`.

@@ -26,26 +26,26 @@ import {
 } from "next/font/google";
 
 // Estáticas (peso 400)
-const monoton = Monoton({ weight: "400", subsets: ["latin"], variable: "--font-neon-monoton" });
-const righteous = Righteous({ weight: "400", subsets: ["latin"], variable: "--font-neon-righteous" });
-const pacifico = Pacifico({ weight: "400", subsets: ["latin"], variable: "--font-neon-pacifico" });
-const kaushan = Kaushan_Script({ weight: "400", subsets: ["latin"], variable: "--font-neon-kaushan" });
-const vibes = Great_Vibes({ weight: "400", subsets: ["latin"], variable: "--font-neon-vibes" });
-const marker = Permanent_Marker({ weight: "400", subsets: ["latin"], variable: "--font-neon-marker" });
-const lobster = Lobster({ weight: "400", subsets: ["latin"], variable: "--font-neon-lobster" });
-const sacramento = Sacramento({ weight: "400", subsets: ["latin"], variable: "--font-neon-sacramento" });
-const bungee = Bungee({ weight: "400", subsets: ["latin"], variable: "--font-neon-bungee" });
-const audiowide = Audiowide({ weight: "400", subsets: ["latin"], variable: "--font-neon-audiowide" });
-const satisfy = Satisfy({ weight: "400", subsets: ["latin"], variable: "--font-neon-satisfy" });
-const yellowtail = Yellowtail({ weight: "400", subsets: ["latin"], variable: "--font-neon-yellowtail" });
-const cookie = Cookie({ weight: "400", subsets: ["latin"], variable: "--font-neon-cookie" });
-const bebas = Bebas_Neue({ weight: "400", subsets: ["latin"], variable: "--font-neon-bebas" });
-const shadows = Shadows_Into_Light({ weight: "400", subsets: ["latin"], variable: "--font-neon-shadows" });
+const monoton = Monoton({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-monoton" });
+const righteous = Righteous({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-righteous" });
+const pacifico = Pacifico({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-pacifico" });
+const kaushan = Kaushan_Script({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-kaushan" });
+const vibes = Great_Vibes({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-vibes" });
+const marker = Permanent_Marker({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-marker" });
+const lobster = Lobster({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-lobster" });
+const sacramento = Sacramento({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-sacramento" });
+const bungee = Bungee({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-bungee" });
+const audiowide = Audiowide({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-audiowide" });
+const satisfy = Satisfy({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-satisfy" });
+const yellowtail = Yellowtail({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-yellowtail" });
+const cookie = Cookie({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-cookie" });
+const bebas = Bebas_Neue({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-bebas" });
+const shadows = Shadows_Into_Light({ weight: "400", subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-shadows" });
 
 // Variables
-const dancing = Dancing_Script({ subsets: ["latin"], variable: "--font-neon-dancing" });
-const caveat = Caveat({ subsets: ["latin"], variable: "--font-neon-caveat" });
-const orbitron = Orbitron({ subsets: ["latin"], variable: "--font-neon-orbitron" });
+const dancing = Dancing_Script({ subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-dancing" });
+const caveat = Caveat({ subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-caveat" });
+const orbitron = Orbitron({ subsets: ["latin"], preload: false, display: "swap", variable: "--font-neon-orbitron" });
 
 /** Clase que agrupa todas las variables de fuente del configurador. */
 export const configuratorFontVars = [
