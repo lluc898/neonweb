@@ -213,6 +213,7 @@ Punto de partida; se refina al implementar.
 - **Order** (usuario, estado, total, dirección envío, stripePaymentId, fecha)
 - **OrderItem** (producto o `customization` JSON con la ficha de producción)
 - **CustomRequest** (diseño a medida: imagenUrl, tamañoDeseado, notas, estado, presupuesto)
+- **SiteSetting** (clave → JSON: ajustes de tienda editables desde el admin; hoy `trustpilot`)
 
 ---
 
@@ -256,7 +257,10 @@ npx prisma migrate dev
   - **Tira de fotos** `components/shop/photo-strip.tsx`: tarjetas **3:2** (la proporción nativa de los archivos, así no se recortan) en un carril horizontal con scroll-snap, flechas, difuminado lateral y **visor a tamaño completo** al pulsar (Escape / flechas / clic fuera; bloquea el scroll del body). El carril **sangra hasta el borde de la pantalla** pero alinea la primera foto con el contenedor vía `paddingInline: max(1.5rem, calc((100vw - 72rem) / 2))`. Deliberadamente **no** es un banner a pantalla completa: se busca que se lean como fotos reales del taller.
   - ⚠️ Las fuentes del configurador van con **`preload: false`** en `lib/neon-fonts.ts`: con 18 familias, precargarlas hundía la portada. Se descargan solo al usarse (0 preloads en el HTML).
   - Sin reseñas ni cifras inventadas: solo afirmaciones reales del negocio.
-  - **Trustpilot ✅**: `lib/trustpilot.ts` (dato único: score, nº de opiniones, etiqueta, URL + fecha de revisión) + `components/shop/trustpilot-rating.tsx` (variantes `inline` y `card`; estrellas con el verde de Trustpilot `#00B67A` — única excepción a la paleta). Aparece en el hero, en la sección de ventajas y en el footer. ⚠️ **Trustpilot devuelve 403 a los bots**: la nota se actualiza a mano desde la ficha real, nunca de memoria.
+  - **Trustpilot ✅ (editable desde el admin)**: `components/shop/trustpilot-rating.tsx` (variantes `inline` y `card`; estrellas con el verde de Trustpilot `#00B67A` — única excepción a la paleta). Aparece en el hero, en la sección de ventajas y en el footer, y **recibe los datos por props** desde `getTrustpilot()` (`lib/site-settings.ts`) → tabla **`SiteSetting`**, clave `trustpilot`. Se edita en **`/admin/trustpilot`** (puntuación, nº de opiniones, enlace y un interruptor para ocultar la insignia); al guardar hace `revalidatePath("/", "layout")` porque la insignia también vive en el footer.
+    - La **etiqueta** (Excelente/Genial/Normal/…) **se calcula** del score (`trustpilotLabel`), no se escribe: así no puede contradecir a la nota.
+    - `lib/trustpilot.ts` es framework-free (tipos + `TRUSTPILOT_DEFAULT` de fallback + `parseTrustpilot` que sanea el JSON de la BD). Lo importan admin y tienda.
+    - ⚠️ **Trustpilot devuelve 403 a los bots**: no hay forma de sincronizar la nota. Se copia a mano de la ficha real; el aviso está puesto en la propia pantalla del admin. Si algún día hay cuenta Business, el **widget oficial (TrustBox)** sí se actualiza solo y sustituiría a todo esto.
   - **Imágenes de la galería**: fotografías genéricas de neones aportadas por el propietario, convertidas a WebP 1600×1067 (15,4 MB → 1,2 MB) con `sharp` y recorte inteligente. Se muestran **sin texto que afirme autoría** (alt neutro: "Rótulo de neón iluminado"). ⚠️ Pendiente de confirmar su licencia; sustituir por fotos propias en cuanto haya.
   - **Footer**: aquí sí va el emblema `logo.webp` (w-24) + insignia de Trustpilot.
 - **Fase 2 (configurador Modo A) ✅ (v1)**: en `/personalizar`.
@@ -301,7 +305,7 @@ npx prisma migrate dev
     - **Rate-limiting persistido** (`AdminLoginAttempt`): 5 fallos/IP o 20 globales en 15 min → bloqueo (aunque luego aciertes). Anti-enumeración de usuarios (verificación dummy en tiempo ~constante). Auditoría con IP; poda > 30 días.
     - **`proxy.ts`** (middleware de Next 16) sobre `/admin/:path*`: redirect temprano sin cookie + cabeceras X-Frame-Options DENY, nosniff, no-referrer, no-store, X-Robots-Tag.
     - Flujo completo verificado E2E (12 casos: alta 2FA, gating de sesión pendiente, anti-replay, creación de usuario, desactivación…).
-  - Secciones: **Resumen**, **Pedidos**, **Solicitudes**, **Productos**, **Precios**, **Seguridad** (sesiones propias; todas si superadmin + botón pánico), **Usuarios** (solo superadmin).
+  - Secciones: **Resumen**, **Pedidos**, **Solicitudes**, **Productos**, **Precios**, **Opiniones** (Trustpilot), **Seguridad** (sesiones propias; todas si superadmin + botón pánico), **Usuarios** (solo superadmin).
   - Server actions en `app/admin/actions.ts`; tras cada cambio hacen `revalidatePath` de la página pública afectada → los cambios del admin se publican al instante.
 - **Modo B (diseño a medida) ✅**:
   - `/diseno-a-medida`: formulario real → subida de imagen + selector de tamaño + notas + contacto → crea `CustomRequest` (gestionable en `/admin/solicitudes`). Estados ok/error vía query params.

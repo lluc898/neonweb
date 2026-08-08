@@ -1,13 +1,15 @@
 import { cn } from "@/lib/utils";
-import { TRUSTPILOT, formatTrustScore } from "@/lib/trustpilot";
+import { formatTrustScore, trustpilotLabel, type TrustpilotData } from "@/lib/trustpilot";
 
 /**
  * Insignia de valoración de Trustpilot.
  *
  * Reproduce el lenguaje visual de Trustpilot (estrellas sobre cuadro verde)
  * porque es lo que el cliente reconoce de un vistazo; es el único punto de la
- * web donde el verde de marca ajena está permitido. Los datos vienen de
- * `lib/trustpilot.ts` — nunca hardcodear una nota aquí.
+ * web donde el verde de marca ajena está permitido.
+ *
+ * Los datos llegan por props desde `getTrustpilot()` (BD, editable en
+ * /admin/trustpilot). Nunca hardcodear una nota aquí.
  */
 
 const TRUSTPILOT_GREEN = "#00B67A";
@@ -33,7 +35,7 @@ function Star({ fill }: { fill: number }) {
   );
 }
 
-function Stars({ score }: { score: number }) {
+export function TrustpilotStars({ score }: { score: number }) {
   return (
     <span className="flex gap-0.5" aria-hidden>
       {Array.from({ length: STARS }, (_, i) => (
@@ -56,13 +58,18 @@ function TrustpilotWordmark() {
 }
 
 type Props = {
+  data: TrustpilotData;
   /** `inline` para barras de confianza y footer; `card` para una sección propia. */
   variant?: "inline" | "card";
   className?: string;
 };
 
-export function TrustpilotRating({ variant = "inline", className }: Props) {
-  const { url, score, reviews, label } = TRUSTPILOT;
+export function TrustpilotRating({ data, variant = "inline", className }: Props) {
+  // El admin puede ocultar la insignia (p. ej. mientras rehacen la ficha).
+  if (!data.visible) return null;
+
+  const { url, score, reviews } = data;
+  const label = trustpilotLabel(score);
   const readable = `${label} en Trustpilot: ${formatTrustScore(score)} sobre 5 con ${reviews} opiniones`;
 
   if (variant === "card") {
@@ -77,7 +84,7 @@ export function TrustpilotRating({ variant = "inline", className }: Props) {
           className
         )}
       >
-        <Stars score={score} />
+        <TrustpilotStars score={score} />
         <p className="text-sm text-muted">
           <span className="font-semibold text-text">{label}</span> ·{" "}
           {formatTrustScore(score)} sobre 5 con {reviews} opiniones en{" "}
@@ -101,7 +108,7 @@ export function TrustpilotRating({ variant = "inline", className }: Props) {
         className
       )}
     >
-      <Stars score={score} />
+      <TrustpilotStars score={score} />
       <span className="text-muted">
         <span className="font-semibold text-text">{formatTrustScore(score)}</span> ·{" "}
         {reviews} opiniones en <TrustpilotWordmark />

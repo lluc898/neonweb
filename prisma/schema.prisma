@@ -109,6 +109,17 @@ model PricingRule {
   @@unique([group, code])
 }
 
+// ------------------------------------------------- Ajustes de la tienda
+
+/// Ajustes editables desde el admin que no encajan en el resto de modelos
+/// (clave → JSON). Hoy: "trustpilot". El código siempre lleva un valor por
+/// defecto, así que una clave ausente no rompe nada.
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
 // ---------------------------------------------------------------- Pedidos
 
 model Order {

@@ -1,8 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
 import { TrustpilotRating } from "@/components/shop/trustpilot-rating";
+import { getTrustpilot } from "@/lib/site-settings";
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const trustpilot = await getTrustpilot();
+
   return (
     <footer className="mt-auto border-t border-border">
       <div className="mx-auto grid w-full max-w-6xl gap-8 px-6 py-12 sm:grid-cols-3">
@@ -19,7 +22,7 @@ export function SiteFooter() {
           <p className="mt-3 text-sm text-muted">
             Neones LED decorativos y personalizados, hechos en Mallorca.
           </p>
-          <TrustpilotRating className="mt-4" />
+          <TrustpilotRating data={trustpilot} className="mt-4" />
         </div>
 
         <div>

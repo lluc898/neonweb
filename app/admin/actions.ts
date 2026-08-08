@@ -13,6 +13,7 @@ import {
   requireSuperadmin,
 } from "@/lib/admin-auth";
 import { hashPassword } from "@/lib/password";
+import { TRUSTPILOT_SETTING_KEY, parseTrustpilot } from "@/lib/trustpilot";
 import type { OrderStatus, RequestStatus } from "@/lib/generated/prisma/enums";
 
 // ------------------------------------------------------------------ Sesión
@@ -182,6 +183,43 @@ export async function updatePricingRuleAction(formData: FormData) {
 
   revalidatePath("/personalizar");
   revalidatePath("/admin/precios");
+}
+
+// -------------------------------------------------------------- Trustpilot
+
+/**
+ * Trustpilot no se puede sincronizar (403 a los bots), así que la nota se
+ * copia a mano desde la ficha real. Se guarda en `SiteSetting` y se revalida
+ * toda la tienda porque la insignia también vive en el footer (layout).
+ */
+export async function updateTrustpilotAction(formData: FormData) {
+  await requireAdmin();
+
+  const score = Number(String(formData.get("score") ?? "").replace(",", "."));
+  const reviews = Number(formData.get("reviews"));
+  const url = String(formData.get("url") ?? "").trim();
+  const visible = formData.get("visible") === "on";
+
+  if (!Number.isFinite(score) || score < 0 || score > 5) {
+    redirect("/admin/trustpilot?error=score");
+  }
+  if (!Number.isFinite(reviews) || reviews < 0) {
+    redirect("/admin/trustpilot?error=reviews");
+  }
+  if (!/^https:\/\/(www\.|es\.)?trustpilot\.com\//.test(url)) {
+    redirect("/admin/trustpilot?error=url");
+  }
+
+  const value = parseTrustpilot({ score, reviews, url, visible });
+
+  await prisma.siteSetting.upsert({
+    where: { key: TRUSTPILOT_SETTING_KEY },
+    create: { key: TRUSTPILOT_SETTING_KEY, value },
+    update: { value },
+  });
+
+  revalidatePath("/", "layout");
+  redirect("/admin/trustpilot?ok=1");
 }
 
 // ----------------------------------------------------------------- Pedidos

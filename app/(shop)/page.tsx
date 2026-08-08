@@ -7,6 +7,7 @@ import { ProductSlider } from "@/components/shop/product-slider";
 import { PhotoStrip } from "@/components/shop/photo-strip";
 import { TrustpilotRating } from "@/components/shop/trustpilot-rating";
 import { getCategories, getConfiguratorOptions, getProducts } from "@/lib/catalog";
+import { getTrustpilot } from "@/lib/site-settings";
 import { getShippingRates } from "@/lib/order-pricing";
 import { formatEUR } from "@/lib/pricing";
 import { configuratorFontVars } from "@/lib/neon-fonts";
@@ -66,11 +67,12 @@ function SectionHeading({
 }
 
 export default async function Home() {
-  const [products, categories, options, shipping] = await Promise.all([
+  const [products, categories, options, shipping, trustpilot] = await Promise.all([
     getProducts(),
     getCategories(),
     getConfiguratorOptions(),
     getShippingRates(),
+    getTrustpilot(),
   ]);
 
   const featured = products.slice(0, 8);
@@ -122,7 +124,7 @@ export default async function Home() {
             </NeonButton>
           </div>
 
-          <TrustpilotRating className="mt-8" />
+          <TrustpilotRating data={trustpilot} className="mt-8" />
 
           <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted">
             <li>✓ Fabricación en 3-5 días</li>
@@ -249,8 +251,9 @@ export default async function Home() {
           ))}
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <TrustpilotRating variant="card" />
+        {/* Si el admin oculta Trustpilot, la tarjeta de contacto ocupa el ancho. */}
+        <div className={`mt-8 grid gap-4 ${trustpilot.visible ? "sm:grid-cols-2" : ""}`}>
+          <TrustpilotRating data={trustpilot} variant="card" />
           <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-surface px-6 py-6 text-center">
             <p className="text-sm text-muted">¿Dudas antes de comprar?</p>
             <a
