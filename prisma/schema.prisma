@@ -38,6 +38,11 @@ enum OrderItemKind {
   CUSTOM // neón personalizado (configurador)
 }
 
+enum CustomerType {
+  PARTICULAR
+  COMPANY
+}
+
 // --------------------------------------------------------------- Usuarios
 
 /// Perfil ligado a Supabase Auth. `id` = uuid de auth.users.
@@ -107,22 +112,43 @@ model PricingRule {
 // ---------------------------------------------------------------- Pedidos
 
 model Order {
-  id              String      @id @default(cuid())
-  profileId       String?
-  profile         Profile?    @relation(fields: [profileId], references: [id])
-  status          OrderStatus @default(NEW)
-  /// Total en céntimos.
-  totalCents      Int
-  customerName    String
-  customerEmail   String
-  customerPhone   String?
-  shippingAddress Json?
+  id        String      @id @default(cuid())
+  /// Referencia legible para el cliente: NLS-2026-0001.
+  number    String      @unique
+  profileId String?
+  profile   Profile?    @relation(fields: [profileId], references: [id])
+  status    OrderStatus @default(NEW)
+
+  // --- Importes (céntimos) ---
+  subtotalCents Int
+  shippingCents Int @default(0)
+  totalCents    Int
+
+  // --- Cliente ---
+  customerType  CustomerType @default(PARTICULAR)
+  firstName     String
+  lastName      String
+  /// Razón social (solo empresas).
+  companyName   String?
+  /// NIF / NIE / CIF.
+  taxId         String?
+  customerEmail String
+  customerPhone String
+
+  // --- Envío / facturación ---
+  /// { street, extra, postalCode, city, province, country }
+  shippingAddress Json
+  /// Null = misma que la de envío.
+  billingAddress  Json?
+  notes           String @default("")
+
   stripePaymentId String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   items           OrderItem[]
 
   @@index([status])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -137,6 +163,8 @@ model OrderItem {
   product    Product?      @relation(fields: [productId], references: [id])
   /// Ficha de producción completa del neón personalizado (NeonConfig).
   customization Json?
+  /// Desglose y estimaciones de fabricación (tubo, m², W) recalculados en servidor.
+  breakdown     Json?
 
   @@index([orderId])
 }

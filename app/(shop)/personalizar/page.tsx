@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { NeonConfigurator } from "@/components/neon/neon-configurator";
 import { getConfiguratorOptions } from "@/lib/catalog";
-import { configuratorFontVars } from "./fonts";
+import { configuratorFontVars } from "@/lib/neon-fonts";
 
 export const metadata: Metadata = {
   title: "Diseña tu neón personalizado",

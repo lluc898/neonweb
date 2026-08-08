@@ -1,6 +1,7 @@
 /**
- * Fuentes específicas del configurador de neón.
- * Se cargan solo en esta ruta para no penalizar el resto de la web.
+ * Fuentes del configurador de neón.
+ * Se aplican solo en las rutas que renderizan neones personalizados
+ * (/personalizar y /carrito) para no penalizar el resto de la web.
  * Cada variable CSS se referencia desde lib/neon-options.ts (NEON_FONTS).
  */
 import {

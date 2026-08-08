@@ -83,6 +83,7 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
 type SizeMeta = {
   dimension?: string;
   heightCm?: number;
+  maxWidthCm?: number;
   charWidthCm?: number;
   tubePerCharM?: number;
 };
@@ -112,6 +113,7 @@ export async function getConfiguratorOptions(): Promise<PricingOptions> {
           label: r.label,
           dimension: meta.dimension ?? def?.dimension ?? "",
           heightCm: meta.heightCm ?? def?.heightCm ?? 20,
+          maxWidthCm: meta.maxWidthCm ?? def?.maxWidthCm ?? 80,
           charWidthCm: meta.charWidthCm ?? def?.charWidthCm ?? 7,
           tubePerCharM: meta.tubePerCharM ?? def?.tubePerCharM ?? 0.35,
         };

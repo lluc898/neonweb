@@ -43,6 +43,16 @@ type Customization = {
   deliveryId?: string;
 };
 
+type Address = {
+  street?: string;
+  extra?: string;
+  postalCode?: string;
+  city?: string;
+  province?: string;
+};
+
+type ItemBreakdown = { tubeM?: number; areaM2?: number; watts?: number };
+
 export default async function AdminPedidosPage({
   searchParams,
 }: PageProps<"/admin/pedidos">) {
@@ -58,7 +68,10 @@ export default async function AdminPedidosPage({
     ...(q
       ? {
           OR: [
-            { customerName: { contains: q, mode: "insensitive" as const } },
+            { number: { contains: q, mode: "insensitive" as const } },
+            { firstName: { contains: q, mode: "insensitive" as const } },
+            { lastName: { contains: q, mode: "insensitive" as const } },
+            { companyName: { contains: q, mode: "insensitive" as const } },
             { customerEmail: { contains: q, mode: "insensitive" as const } },
           ],
         }
@@ -109,8 +122,10 @@ export default async function AdminPedidosPage({
                 <span className={`text-xs font-bold uppercase ${STATUS_COLORS[o.status]}`}>
                   {STATUS_LABELS[o.status]}
                 </span>
+                <span className="font-mono text-xs text-neon-cyan">{o.number}</span>
                 <span className="flex-1 font-medium text-text">
-                  {o.customerName}
+                  {o.companyName ? `${o.companyName} · ` : ""}
+                  {o.firstName} {o.lastName}
                   <span className="ml-2 text-sm font-normal text-muted">{o.customerEmail}</span>
                 </span>
                 <span className="text-sm text-muted">{fmtDateTime.format(o.createdAt)}</span>
@@ -118,6 +133,49 @@ export default async function AdminPedidosPage({
               </summary>
 
               <div className="border-t border-border/50 px-5 py-4">
+                {/* Datos del cliente y envío */}
+                <div className="mb-4 grid gap-4 text-sm sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-wider text-muted">Cliente</p>
+                    <p className="text-text">
+                      {o.customerType === "COMPANY" ? "Empresa" : "Particular"}
+                      {o.taxId ? ` · ${o.taxId}` : ""}
+                    </p>
+                    <a href={`tel:${o.customerPhone}`} className="text-neon-cyan hover:underline">
+                      {o.customerPhone}
+                    </a>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <p className="text-xs uppercase tracking-wider text-muted">Dirección de envío</p>
+                    {(() => {
+                      const a = (o.shippingAddress ?? {}) as Address;
+                      return (
+                        <p className="text-text">
+                          {a.street}
+                          {a.extra ? `, ${a.extra}` : ""} · {a.postalCode} {a.city} ({a.province})
+                        </p>
+                      );
+                    })()}
+                    {o.billingAddress != null &&
+                      (() => {
+                        const b = o.billingAddress as Address;
+                        return (
+                          <p className="mt-1 text-xs text-muted">
+                            Facturación: {b.street}
+                            {b.extra ? `, ${b.extra}` : ""} · {b.postalCode} {b.city} ({b.province})
+                          </p>
+                        );
+                      })()}
+                  </div>
+                </div>
+
+                {o.notes && (
+                  <p className="mb-4 rounded-lg border border-border/60 bg-bg p-3 text-sm text-text">
+                    <span className="text-xs uppercase tracking-wider text-muted">Notas: </span>
+                    {o.notes}
+                  </p>
+                )}
+
                 {/* Ficha de producción */}
                 <ul className="space-y-3">
                   {o.items.map((item) => {
@@ -133,6 +191,22 @@ export default async function AdminPedidosPage({
                           </span>
                           <span className="text-muted">{formatEUR(item.priceCents / 100)}</span>
                         </div>
+                        {(() => {
+                          const b = (item.breakdown ?? null) as ItemBreakdown | null;
+                          return b?.tubeM ? (
+                            <p className="mt-1.5 text-xs text-neon-cyan">
+                              Fabricación: {b.tubeM} m de tubo · {b.areaM2} m² · {b.watts} W
+                            </p>
+                          ) : null;
+                        })()}
+                        {item.kind === "CUSTOM" && item.customization != null && (
+                          <a
+                            href={`/admin/pedidos/${item.id}/eps`}
+                            className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-neon-cyan/60 px-3.5 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10"
+                          >
+                            ⬇ Descargar EPS (tamaño real, trazado)
+                          </a>
+                        )}
                         {c && (
                           <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted sm:grid-cols-3">
                             {c.text && <div><dt className="inline font-semibold">Texto: </dt><dd className="inline">“{c.text}”</dd></div>}

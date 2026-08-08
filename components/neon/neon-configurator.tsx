@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { NeonPreview } from "@/components/neon/neon-preview";
+import { ColorPicker } from "@/components/neon/color-picker";
 import { SupportPicker } from "@/components/neon/support-picker";
 import { cn } from "@/lib/utils";
 import { addToCart } from "@/lib/cart";
@@ -16,7 +17,6 @@ import {
 } from "@/lib/pricing";
 import {
   NEON_BACKDROPS,
-  NEON_COLORS,
   NEON_FONTS,
   FONTS_VISIBLE,
   DEFAULT_CONFIG,
@@ -81,8 +81,8 @@ export function NeonConfigurator({
         type: "custom",
         config,
         price: price.total,
-        // Estimaciones de fabricación (ficha de producción)
-        specs: { tubeM: price.tubeM, areaM2: price.areaM2, watts: price.watts },
+        // Desglose completo (ficha de producción + detalle del precio)
+        breakdown: price,
         addedAt: Date.now(),
       },
       config.text.trim() || "Neón personalizado"
@@ -196,36 +196,12 @@ export function NeonConfigurator({
         </Section>
 
         {/* 3. Color */}
-        <Section n={3} title={`Color · ${color.label}`}>
-          <div className="flex flex-wrap gap-2.5">
-            {NEON_COLORS.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => set("colorId", c.id)}
-                aria-label={c.label}
-                title={c.label}
-                className={cn(
-                  "h-9 w-9 rounded-full transition-transform hover:scale-110",
-                  config.colorId === c.id && "ring-2 ring-white ring-offset-2 ring-offset-surface"
-                )}
-                style={
-                  c.rgb
-                    ? {
-                        // Rueda multicolor para el swatch RGB
-                        background:
-                          "conic-gradient(#ff0040, #ff8c1a, #ffe600, #39ff14, #29abe2, #b026ff, #ff0040)",
-                        boxShadow: "0 0 10px rgba(255,255,255,0.45)",
-                      }
-                    : { backgroundColor: c.hex, boxShadow: `0 0 10px ${c.hex}` }
-                }
-              />
-            ))}
-          </div>
-          {color.rgb && (
-            <p className="mt-2 text-xs text-muted">
-              Cambia de color con mando a distancia (incluido). Suplemento aplicado al precio.
-            </p>
-          )}
+        <Section n={3} title="Color">
+          <ColorPicker
+            value={config.colorId}
+            onChange={(id) => set("colorId", id)}
+            rgbExtra={options.rates.rgbExtra}
+          />
         </Section>
 
         {/* 4. Tamaño */}

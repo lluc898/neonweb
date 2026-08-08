@@ -55,6 +55,7 @@ async function main() {
     const meta = {
       dimension: s.dimension,
       heightCm: s.heightCm,
+      maxWidthCm: s.maxWidthCm,
       charWidthCm: s.charWidthCm,
       tubePerCharM: s.tubePerCharM,
     };
@@ -92,6 +93,19 @@ async function main() {
       meta: { wattsPerM: NEON_RATES.wattsPerM, wattsPerMRgb: NEON_RATES.wattsPerMRgb },
     },
   });
+
+  // Envío: coste y umbral de envío gratis (editables desde el admin).
+  const shippingRows = [
+    { code: "cost", label: "Gastos de envío", amountCents: 990 },
+    { code: "free_from", label: "Envío gratis a partir de", amountCents: 20000 },
+  ];
+  for (const r of shippingRows) {
+    await prisma.pricingRule.upsert({
+      where: { group_code: { group: "SHIPPING", code: r.code } },
+      update: { label: r.label },
+      create: { group: "SHIPPING", code: r.code, label: r.label, amountCents: r.amountCents },
+    });
+  }
 
   // Entrega: estándar 3-5 días / express 24-48 h con plus.
   for (const d of NEON_DELIVERIES) {

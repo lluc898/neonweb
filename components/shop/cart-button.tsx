@@ -1,30 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { getCartServerSnapshot, getCartSnapshot, subscribeCart } from "@/lib/cart";
 
-/** Lee el nº de artículos del carrito (localStorage) y se actualiza en vivo. */
+/** Botón de carrito con el nº de artículos en vivo (badge con "pop" al añadir). */
 export function CartButton() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const read = () => {
-      try {
-        const raw = localStorage.getItem("neon_cart");
-        setCount(raw ? JSON.parse(raw).length : 0);
-      } catch {
-        setCount(0);
-      }
-    };
-    read();
-    window.addEventListener("storage", read);
-    window.addEventListener("cart-updated", read);
-    return () => {
-      window.removeEventListener("storage", read);
-      window.removeEventListener("cart-updated", read);
-    };
-  }, []);
+  const items = useSyncExternalStore(subscribeCart, getCartSnapshot, getCartServerSnapshot);
+  const count = items.length;
 
   return (
     <Link
