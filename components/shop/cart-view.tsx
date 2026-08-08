@@ -3,7 +3,12 @@
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { cn, neonTextGlow } from "@/lib/utils";
-import { calcPrice, formatEUR, type PriceBreakdown } from "@/lib/pricing";
+import {
+  DEFAULT_PRODUCT_OPTIONS,
+  calcPrice,
+  formatEUR,
+  type PriceBreakdown,
+} from "@/lib/pricing";
 import {
   findColor,
   findDelivery,
@@ -218,17 +223,26 @@ function ProductItemCard({
   item: Extract<CartItem, { type: "product" }>;
   onRemove: () => void;
 }) {
-  const colorName =
-    NEON_COLORS.find((c) => c.hex.toLowerCase() === item.color.toLowerCase())?.label ?? "Personalizado";
+  // Carritos guardados antes de la v2 solo traen el hex: se traduce a color.
+  const color = item.colorId
+    ? findColor(item.colorId)
+    : NEON_COLORS.find((c) => c.hex.toLowerCase() === item.color.toLowerCase());
+  const hex = color?.hex ?? item.color;
+
   const size = PRODUCT_SIZES.find((s) => s.id === item.sizeId);
+  const support = findSupport(item.supportId ?? DEFAULT_PRODUCT_OPTIONS.supportId);
+  const usage = findUsage(item.usageId ?? DEFAULT_PRODUCT_OPTIONS.usageId);
 
   return (
     <li className="overflow-hidden rounded-xl border border-border bg-surface">
       <div className="flex flex-col gap-4 p-4 sm:flex-row">
-        <NeonStage color={item.color} className="h-28 w-full shrink-0 rounded-lg sm:w-40">
+        <NeonStage color={hex} className="h-28 w-full shrink-0 rounded-lg sm:w-40">
           <span
-            className="block max-w-[140px] truncate text-center font-[family-name:var(--font-script)] text-xl"
-            style={{ color: item.color, textShadow: neonTextGlow(item.color, 0.85) }}
+            className={cn(
+              "block max-w-[140px] truncate text-center font-[family-name:var(--font-script)] text-xl",
+              color?.rgb && "animate-rgb"
+            )}
+            style={{ color: hex, textShadow: neonTextGlow(hex, 0.85) }}
           >
             {item.name}
           </span>
@@ -253,14 +267,16 @@ function ProductItemCard({
           </div>
 
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5 sm:grid-cols-3">
-            <Spec label="Color" value={colorName} />
+            <Spec label="Color" value={color?.label ?? "Personalizado"} />
             {size && <Spec label="Tamaño" value={`${size.label} · ${size.dimension}`} />}
-            <Spec label="Uso" value="Interior" />
+            <Spec label="Contorno" value={support.label} />
+            <Spec label="Uso" value={usage.label} />
           </dl>
 
           <p className="mt-3 border-t border-border/70 pt-2.5 text-xs text-muted">
             <span className="font-medium text-text">Incluye:</span> transformador, fijaciones y
-            manual de montaje.
+            manual de montaje
+            {usage.id !== "interior" && " · acabado resistente al agua (IP65)"}.
           </p>
 
           <Link

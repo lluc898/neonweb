@@ -25,6 +25,7 @@ import {
   type NeonSupport,
   type NeonUsage,
 } from "@/lib/neon-options";
+import { PRODUCT_SIZES } from "@/lib/products";
 
 /** Reglas de precio activas (por defecto las constantes; en producción, la BD). */
 export type PricingOptions = {
@@ -118,6 +119,69 @@ export function calcPrice(
     deliveryMultiplier: delivery.multiplier,
     minApplied,
     total,
+  };
+}
+
+// ------------------------------------------------- Productos de catálogo
+
+/**
+ * Opciones que el cliente elige sobre un producto de catálogo.
+ * Es el equivalente reducido de `NeonConfig`: como el diseño ya está hecho,
+ * no hay texto ni tipografía que elegir.
+ */
+export type ProductOptions = {
+  colorId: string;
+  sizeId: string;
+  supportId: string;
+  usageId: string;
+};
+
+export type ProductPriceBreakdown = {
+  /** Precio de catálogo del producto (corresponde al tamaño Mediano). */
+  base: number;
+  sizeDelta: number;
+  support: number;
+  rgbExtra: number;
+  subtotal: number;
+  usageMultiplier: number;
+  total: number;
+};
+
+export const DEFAULT_PRODUCT_OPTIONS: Omit<ProductOptions, "colorId"> = {
+  sizeId: "m",
+  supportId: "contorno",
+  usageId: "interior",
+};
+
+/**
+ * Precio de un producto de catálogo con sus opciones.
+ *
+ * A diferencia del personalizado NO se calcula desde la geometría: el
+ * fabricante ya tiene tarifado el diseño, así que se parte del precio de
+ * catálogo y se le aplican los mismos modificadores que al configurador
+ * (tamaño, soporte, RGB y uso). Función pura: la usan el cliente para el
+ * precio en vivo y el servidor para el precio real.
+ */
+export function calcProductPrice(
+  basePrice: number,
+  opts: ProductOptions,
+  options: PricingOptions = DEFAULT_PRICING
+): ProductPriceBreakdown {
+  const sizeDelta = PRODUCT_SIZES.find((s) => s.id === opts.sizeId)?.delta ?? 0;
+  const support = options.supports.find((s) => s.id === opts.supportId) ?? options.supports[0];
+  const usage = options.usages.find((u) => u.id === opts.usageId) ?? options.usages[0];
+  const rgbExtra = opts.colorId === "rgb" ? options.rates.rgbExtra : 0;
+
+  const subtotal = basePrice + sizeDelta + support.extraPrice + rgbExtra;
+
+  return {
+    base: basePrice,
+    sizeDelta,
+    support: support.extraPrice,
+    rgbExtra,
+    subtotal: Math.round(subtotal),
+    usageMultiplier: usage.multiplier,
+    total: Math.round(subtotal * usage.multiplier),
   };
 }
 

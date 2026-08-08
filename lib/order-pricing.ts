@@ -2,7 +2,13 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { getConfiguratorOptions } from "@/lib/catalog";
-import { calcPrice, type PriceBreakdown } from "@/lib/pricing";
+import {
+  calcPrice,
+  calcProductPrice,
+  DEFAULT_PRODUCT_OPTIONS,
+  type PriceBreakdown,
+  type ProductPriceBreakdown,
+} from "@/lib/pricing";
 import {
   DEFAULT_CONFIG,
   NEON_COLORS,
@@ -20,7 +26,15 @@ import { PRODUCT_SIZES } from "@/lib/products";
 /** Lo que manda el navegador (sin confiar en ningún importe). */
 export type IncomingItem =
   | { type: "custom"; config: Partial<NeonConfig> }
-  | { type: "product"; slug: string; color?: string; sizeId?: string };
+  | {
+      type: "product";
+      slug: string;
+      color?: string;
+      colorId?: string;
+      sizeId?: string;
+      supportId?: string;
+      usageId?: string;
+    };
 
 export type PricedItem = {
   kind: "CUSTOM" | "PRODUCT";
@@ -28,7 +42,7 @@ export type PricedItem = {
   priceCents: number;
   productId?: string;
   customization?: NeonConfig & { colorHex?: string };
-  breakdown?: PriceBreakdown;
+  breakdown?: PriceBreakdown | ProductPriceBreakdown;
 };
 
 export type ShippingRates = {
@@ -113,22 +127,44 @@ export async function priceCart(incoming: IncomingItem[]): Promise<PricedCart> {
     if (raw?.type === "product" && typeof raw.slug === "string") {
       const product = await prisma.product.findUnique({ where: { slug: raw.slug } });
       if (!product || !product.active) continue;
+
+      // El precio base sale SIEMPRE de la BD; del navegador solo se aceptan
+      // las opciones, y saneadas contra las válidas.
+      const pick = (value: unknown, allowed: string[], fallback: string) =>
+        typeof value === "string" && allowed.includes(value) ? value : fallback;
+
       const size = PRODUCT_SIZES.find((s) => s.id === raw.sizeId) ?? PRODUCT_SIZES[1];
-      const priceCents = product.priceCents + size.delta * 100;
+      const colorId = pick(
+        // Carritos antiguos solo guardaban el hex: se traduce a su id.
+        raw.colorId ??
+          NEON_COLORS.find((c) => c.hex.toLowerCase() === String(raw.color).toLowerCase())?.id,
+        NEON_COLORS.map((c) => c.id),
+        DEFAULT_CONFIG.colorId
+      );
+      const supportId = pick(raw.supportId, valid.supports, DEFAULT_PRODUCT_OPTIONS.supportId);
+      const usageId = pick(raw.usageId, valid.usages, DEFAULT_PRODUCT_OPTIONS.usageId);
+
+      const breakdown = calcProductPrice(
+        product.priceCents / 100,
+        { colorId, sizeId: size.id, supportId, usageId },
+        options
+      );
+
       items.push({
         kind: "PRODUCT",
         name: product.name,
-        priceCents,
+        priceCents: Math.round(breakdown.total * 100),
         productId: product.id,
         customization: {
           ...DEFAULT_CONFIG,
           text: product.name,
           sizeId: size.id,
-          colorId:
-            NEON_COLORS.find((c) => c.hex.toLowerCase() === String(raw.color).toLowerCase())?.id ??
-            DEFAULT_CONFIG.colorId,
-          colorHex: raw.color ?? product.color,
+          supportId,
+          usageId,
+          colorId,
+          colorHex: NEON_COLORS.find((c) => c.id === colorId)?.hex ?? product.color,
         },
+        breakdown,
       });
     }
   }

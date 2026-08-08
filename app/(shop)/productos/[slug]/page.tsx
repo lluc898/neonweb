@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductDetail } from "@/components/shop/product-detail";
-import { getProductBySlug } from "@/lib/catalog";
+import { getConfiguratorOptions, getProductBySlug } from "@/lib/catalog";
 
 // Fichas desde la BD, cacheadas y regeneradas bajo demanda (ISR).
 export const revalidate = 300;
@@ -27,7 +27,12 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = await getProductBySlug(slug);
+  const [product, options] = await Promise.all([
+    getProductBySlug(slug),
+    // Mismas reglas que el configurador: soportes, usos y suplemento RGB
+    // salen de la BD, así el admin los cambia sin tocar código.
+    getConfiguratorOptions(),
+  ]);
   if (!product) notFound();
 
   return (
@@ -36,7 +41,7 @@ export default async function ProductPage({
         ← Volver al catálogo
       </Link>
       <div className="mt-6">
-        <ProductDetail product={product} />
+        <ProductDetail product={product} options={options} />
       </div>
     </main>
   );

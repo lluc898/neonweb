@@ -83,7 +83,6 @@ export function NeonConfigurator({
         price: price.total,
         // Desglose completo (ficha de producción + detalle del precio)
         breakdown: price,
-        addedAt: Date.now(),
       },
       config.text.trim() || "Neón personalizado"
     );

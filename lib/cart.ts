@@ -1,7 +1,7 @@
 "use client";
 
 import type { NeonConfig } from "@/lib/neon-options";
-import type { PriceBreakdown } from "@/lib/pricing";
+import type { PriceBreakdown, ProductPriceBreakdown } from "@/lib/pricing";
 
 /**
  * Carrito v1 en localStorage (clave `neon_cart`).
@@ -26,10 +26,20 @@ export type CartItem =
       type: "product";
       slug: string;
       name: string;
+      /** Hex del color elegido (para pintar la preview del carrito). */
       color: string;
       sizeId: string;
       price: number;
       addedAt: number;
+      /**
+       * Opciones añadidas en la v2 de la ficha de producto. Son opcionales
+       * porque los carritos guardados antes no las traen: quien las lea debe
+       * caer a los valores por defecto (`DEFAULT_PRODUCT_OPTIONS`).
+       */
+      colorId?: string;
+      supportId?: string;
+      usageId?: string;
+      breakdown?: ProductPriceBreakdown;
     };
 
 const KEY = "neon_cart";
@@ -87,9 +97,23 @@ function persist(items: CartItem[]) {
   window.dispatchEvent(new Event("cart-updated"));
 }
 
-/** Añade un artículo y notifica a la UI (badge + toast con el nombre). */
-export function addToCart(item: CartItem, label: string) {
-  persist([...readCart(), item]);
+/**
+ * Un artículo tal como lo pasa quien lo añade: sin `addedAt`, que lo pone
+ * `addToCart`. Distributivo para que respete las dos variantes de la unión.
+ */
+export type NewCartItem = CartItem extends infer T
+  ? T extends CartItem
+    ? Omit<T, "addedAt">
+    : never
+  : never;
+
+/**
+ * Añade un artículo y notifica a la UI (badge + toast con el nombre).
+ * La marca de tiempo se sella aquí: el llamante no puede olvidarla, y así
+ * los componentes no llaman a `Date.now()` durante el render.
+ */
+export function addToCart(item: NewCartItem, label: string) {
+  persist([...readCart(), { ...item, addedAt: Date.now() } as CartItem]);
   window.dispatchEvent(new CustomEvent("cart-added", { detail: { label } }));
 }
 
