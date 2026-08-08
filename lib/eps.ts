@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse as parseFont, Path, type Font, type Glyph } from "opentype.js";
 import { findColor, findFont, findSize, findSupport, findUsage, type NeonConfig } from "@/lib/neon-options";
+import { commandsBounds, svgToCommands } from "@/lib/svg-path";
 
 /**
  * Generación del EPS de producción: el texto del cliente convertido a CURVAS
@@ -282,6 +283,136 @@ showpage
   return {
     content,
     fileName: `${orderNumber}-${safeText || "neon"}-${size.heightCm}cm.eps`,
+    widthCm,
+    heightCm,
+  };
+}
+
+// ------------------------------------------- EPS de un diseño vectorial
+
+/**
+ * EPS de un producto de catálogo dibujado con un SVG (un logo, por ejemplo).
+ *
+ * No hace falta trazar nada: los trazos ya son curvas. Lo que sí hay que
+ * resolver es el **tamaño real**. Un logo no tiene "altura de letra", así que
+ * se aplica la regla del tamaño contratado: el diseño se inscribe en el lado
+ * mayor de ese tamaño (Grande = hasta 100 cm → el lado mayor mide 100 cm).
+ * Queda anotado en la cabecera para que el taller pueda reescalar si procede.
+ */
+export function buildVectorEps(
+  svgMarkup: string,
+  productName: string,
+  config: Pick<NeonConfig, "sizeId" | "supportId" | "usageId" | "colorId">,
+  orderNumber: string
+): EpsResult {
+  const size = findSize(config.sizeId);
+  const color = findColor(config.colorId);
+  const support = findSupport(config.supportId);
+  const usage = findUsage(config.usageId);
+
+  const commands = svgToCommands(svgMarkup);
+  const bounds = commandsBounds(commands);
+  if (!commands.length || !bounds) {
+    throw new Error("El diseño vectorial no tiene trazos.");
+  }
+
+  const srcWidth = bounds.x2 - bounds.x1;
+  const srcHeight = bounds.y2 - bounds.y1;
+  if (!(srcWidth > 0) || !(srcHeight > 0)) {
+    throw new Error("El diseño vectorial no tiene dimensiones.");
+  }
+
+  // Escala: el lado mayor pasa a medir el tamaño contratado.
+  const targetPt = size.maxWidthCm * PT_PER_CM;
+  const scale = targetPt / Math.max(srcWidth, srcHeight);
+
+  const inkWidthPt = srcWidth * scale;
+  const inkHeightPt = srcHeight * scale;
+
+  const marginPt = 1 * PT_PER_CM;
+  const widthPt = inkWidthPt + marginPt * 2;
+  const heightPt = inkHeightPt + marginPt * 2;
+
+  const round = (n: number) => Math.round(n * 1000) / 1000;
+  const ps: string[] = [];
+  let open = false;
+
+  for (const cmd of commands) {
+    switch (cmd.t) {
+      case "M":
+        if (open) ps.push("closepath");
+        ps.push(`${round(cmd.x)} ${round(cmd.y)} moveto`);
+        open = true;
+        break;
+      case "L":
+        ps.push(`${round(cmd.x)} ${round(cmd.y)} lineto`);
+        break;
+      case "C":
+        ps.push(
+          `${round(cmd.x1)} ${round(cmd.y1)} ${round(cmd.x2)} ${round(cmd.y2)} ${round(cmd.x)} ${round(cmd.y)} curveto`
+        );
+        break;
+      case "Z":
+        ps.push("closepath");
+        open = false;
+        break;
+    }
+  }
+  if (open) ps.push("closepath");
+
+  const widthCm = Math.round((inkWidthPt / PT_PER_CM) * 10) / 10;
+  const heightCm = Math.round((inkHeightPt / PT_PER_CM) * 10) / 10;
+  const now = new Date().toISOString().slice(0, 10);
+  const asciiName = productName.normalize("NFD").replace(/[^\x20-\x7E]/g, "");
+
+  const content = `%!PS-Adobe-3.0 EPSF-3.0
+%%Creator: Neon Led Spain
+%%Title: ${orderNumber} - ${asciiName}
+%%CreationDate: ${now}
+%%BoundingBox: 0 0 ${Math.ceil(widthPt)} ${Math.ceil(heightPt)}
+%%HiResBoundingBox: 0 0 ${round(widthPt)} ${round(heightPt)}
+%%DocumentData: Clean7Bit
+%%LanguageLevel: 2
+%%EndComments
+%%BeginProlog
+% ---------------------------------------------------------------
+% FICHA DE PRODUCCION
+%   Pedido .......: ${orderNumber}
+%   Producto .....: ${asciiName}
+%   Diseno .......: vectorial (SVG del catalogo), ya en curvas
+%   Color ........: ${color.label}
+%   Tamano .......: ${size.label} - hasta ${size.maxWidthCm} cm
+%   Regla escala .: el lado mayor del diseno mide ${size.maxWidthCm} cm
+%   Medidas reales: ${widthCm} x ${heightCm} cm (diseno, sin margen)
+%   Margen .......: 1 cm por lado
+%   Soporte ......: ${support.label}
+%   Uso ..........: ${usage.label}
+%   Unidades .....: 1 pt = 1/72 pulgada. Documento a TAMANO REAL.
+% ---------------------------------------------------------------
+%%EndProlog
+gsave
+% Encaja la tinta dentro del margen e invierte el eje Y
+% (SVG trabaja con Y hacia abajo; PostScript, hacia arriba).
+${round(marginPt - bounds.x1 * scale)} ${round(heightPt - marginPt + bounds.y1 * scale)} translate
+${round(scale)} ${round(-scale)} scale
+newpath
+${ps.join("\n")}
+0 setgray
+eofill
+grestore
+showpage
+%%EOF
+`;
+
+  const safeName = productName
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 40);
+
+  return {
+    content,
+    fileName: `${orderNumber}-${safeName || "logo"}-${size.maxWidthCm}cm.eps`,
     widthCm,
     heightCm,
   };

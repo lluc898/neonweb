@@ -199,14 +199,18 @@ export default async function AdminPedidosPage({
                             </p>
                           ) : null;
                         })()}
-                        {item.kind === "CUSTOM" && item.customization != null && (
-                          <a
-                            href={`/admin/pedidos/${item.id}/eps`}
-                            className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-neon-cyan/60 px-3.5 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10"
-                          >
-                            ⬇ Descargar EPS (tamaño real, trazado)
-                          </a>
-                        )}
+                        {/* El EPS se puede generar tanto de un personalizado
+                            como de un producto de catálogo (vectorial o con
+                            tipografía), siempre que el producto siga existiendo. */}
+                        {item.customization != null &&
+                          (item.kind === "CUSTOM" || item.productId) && (
+                            <a
+                              href={`/admin/pedidos/${item.id}/eps`}
+                              className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-neon-cyan/60 px-3.5 py-1.5 text-xs font-semibold text-neon-cyan transition-colors hover:bg-neon-cyan/10"
+                            >
+                              ⬇ Descargar EPS (tamaño real, trazado)
+                            </a>
+                          )}
                         {c && (
                           <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs text-muted sm:grid-cols-3">
                             {c.text && <div><dt className="inline font-semibold">Texto: </dt><dd className="inline">“{c.text}”</dd></div>}
