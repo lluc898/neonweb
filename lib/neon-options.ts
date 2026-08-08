@@ -197,13 +197,29 @@ export const DEFAULT_CONFIG: NeonConfig = {
 export type NeonBackdrop = {
   id: string;
   label: string;
+  /** Fondo CSS: se ve mientras carga la foto y si el fondo no tiene ninguna. */
   style: CSSProperties;
+  /** Fotografía en `/public/fondos` (opcional). */
+  image?: string;
+  /**
+   * Oscurecido que se aplica encima de la foto (0–1). Las fotos vienen
+   * demasiado claras: sin esto el neón no destaca sobre ellas.
+   */
+  dim?: number;
 };
 
+/**
+ * Fotografías de `public/fondos` (Pexels, licencia libre para uso comercial).
+ * El `style` de cada fondo se ve mientras carga la foto y hace de red de
+ * seguridad si el archivo faltase. "Noche" sigue siendo CSS puro: es un
+ * ambiente, no un lugar, y en foto quedaría peor.
+ */
 export const NEON_BACKDROPS: NeonBackdrop[] = [
   {
     id: "estudio",
     label: "Estudio",
+    image: "/fondos/estudio.webp",
+    dim: 0.35,
     style: {
       backgroundColor: "#16161d",
       backgroundImage:
@@ -213,6 +229,8 @@ export const NEON_BACKDROPS: NeonBackdrop[] = [
   {
     id: "ladrillo",
     label: "Ladrillo",
+    image: "/fondos/ladrillo.webp",
+    dim: 0.3,
     style: {
       // Pared de ladrillo en CSS puro (sin imágenes): ladrillos desfasados con junta.
       backgroundColor: "#2c1b15",
@@ -227,21 +245,34 @@ export const NEON_BACKDROPS: NeonBackdrop[] = [
     },
   },
   {
+    id: "salon",
+    label: "Salón",
+    image: "/fondos/salon.webp",
+    dim: 0.38,
+    style: {
+      backgroundColor: "#242a20",
+      backgroundImage:
+        "radial-gradient(90% 70% at 50% 0%, rgba(150,95,70,0.18), transparent 60%), linear-gradient(180deg, #2b3226 0%, #14170f 100%)",
+    },
+  },
+  {
+    id: "hojas",
+    label: "Hojas",
+    image: "/fondos/hojas.webp",
+    dim: 0.45,
+    style: {
+      backgroundColor: "#16240f",
+      backgroundImage:
+        "radial-gradient(90% 70% at 50% 0%, rgba(60,120,45,0.35), transparent 65%)",
+    },
+  },
+  {
     id: "noche",
     label: "Noche",
     style: {
       backgroundColor: "#05060f",
       backgroundImage:
         "radial-gradient(70% 50% at 50% 115%, rgba(41,171,226,0.18), transparent 70%), linear-gradient(180deg, #0e1a33 0%, #05060f 70%)",
-    },
-  },
-  {
-    id: "salon",
-    label: "Salón",
-    style: {
-      backgroundColor: "#150f12",
-      backgroundImage:
-        "radial-gradient(90% 70% at 50% 0%, rgba(150,95,70,0.28), transparent 60%), linear-gradient(180deg, #1e1519 0%, #0d090b 100%)",
     },
   },
 ];

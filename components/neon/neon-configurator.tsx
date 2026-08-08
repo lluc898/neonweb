@@ -100,7 +100,7 @@ export function NeonConfigurator({
           scale={font.scale}
           hex={color.hex}
           rgb={color.rgb}
-          backdropStyle={backdrop.style}
+          backdrop={backdrop}
         />
         {/* Selector de fondo */}
         <div className="mt-3 flex items-center gap-2">
